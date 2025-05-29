@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../models/user.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/database_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -9,19 +13,29 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // TODO: Substituir por dados reais do banco
-  final Map<String, dynamic> _mockUser = {
-    'name': 'João Silva',
-    'email': 'joao.silva@email.com',
-    'birthDate': '15/03/1990',
-    'gender': 'Masculino',
-    'height': 175,
-    'weight': 78.2,
-    'goal': 'Hipertrofia',
-    'workoutsCompleted': 32,
-    'daysStreak': 5,
-    'joinedDate': '01/01/2024',
-  };
+  User? _user;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final user = await AuthService.getCurrentUser();
+      setState(() {
+        _user = user;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('[ProfileScreen] Erro ao carregar dados do usuário: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
@@ -32,8 +46,107 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _updateWeight() async {
+    final TextEditingController weightController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Atualizar Peso'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: weightController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,1}$')),
+            ],
+            decoration: const InputDecoration(
+              labelText: 'Novo Peso (kg)',
+              hintText: 'Ex: 75.5',
+              suffixText: 'kg',
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Por favor, insira o peso';
+              }
+              final weight = double.tryParse(value);
+              if (weight == null) {
+                return 'Peso inválido';
+              }
+              if (weight < 30 || weight > 300) {
+                return 'Peso deve estar entre 30 e 300 kg';
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                final newWeight = double.parse(weightController.text);
+                final success = await DatabaseService.updateUserWeight(_user!.email, newWeight);
+                
+                if (success && mounted) {
+                  Navigator.pop(context);
+                  _loadUserData(); // Recarrega os dados do usuário
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Peso atualizado com sucesso!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Erro ao atualizar peso. Tente novamente.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_user == null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Erro ao carregar dados do usuário'),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                child: const Text('Voltar para o login'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Perfil'),
@@ -70,11 +183,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              _mockUser['name'],
+              _user!.name,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             Text(
-              _mockUser['email'],
+              _user!.email,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onBackground,
                   ),
@@ -99,19 +212,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildStatCard(
                           context,
                           'Treinos\nConcluídos',
-                          _mockUser['workoutsCompleted'].toString(),
+                          _user!.workoutsCompleted.toString(),
                           Icons.fitness_center,
                         ),
                         _buildStatCard(
                           context,
                           'Dias\nConsecutivos',
-                          _mockUser['daysStreak'].toString(),
+                          _user!.daysStreak.toString(),
                           Icons.local_fire_department,
                         ),
                         _buildStatCard(
                           context,
                           'Membro\nDesde',
-                          _mockUser['joinedDate'],
+                          '${_user!.joinedDate.day}/${_user!.joinedDate.month}/${_user!.joinedDate.year}',
                           Icons.calendar_today,
                         ),
                       ],
@@ -126,31 +239,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   _buildInfoTile(
                     'Data de Nascimento',
-                    _mockUser['birthDate'],
+                    '${_user!.birthDate.day}/${_user!.birthDate.month}/${_user!.birthDate.year}',
                     Icons.cake,
                   ),
                   const Divider(),
                   _buildInfoTile(
                     'Gênero',
-                    _mockUser['gender'],
+                    _user!.gender,
                     Icons.person_outline,
                   ),
                   const Divider(),
                   _buildInfoTile(
                     'Altura',
-                    '${_mockUser['height']} cm',
+                    '${_user!.height} cm',
                     Icons.height,
                   ),
                   const Divider(),
                   _buildInfoTile(
                     'Peso Atual',
-                    '${_mockUser['weight']} kg',
+                    '${_user!.weight} kg',
                     Icons.monitor_weight_outlined,
+                    onTap: _updateWeight,
                   ),
                   const Divider(),
                   _buildInfoTile(
                     'Objetivo',
-                    _mockUser['goal'],
+                    _user!.goal,
                     Icons.track_changes,
                   ),
                 ],
@@ -158,8 +272,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 32),
             FilledButton.icon(
-              onPressed: () {
-                Navigator.pushReplacementNamed(context, '/login');
+              onPressed: () async {
+                await AuthService.logout();
+                if (mounted) {
+                  Navigator.pushReplacementNamed(context, '/login');
+                }
               },
               icon: const Icon(Icons.logout),
               label: const Text('Sair'),
@@ -200,7 +317,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildInfoTile(String label, String value, IconData icon) {
+  Widget _buildInfoTile(String label, String value, IconData icon, {VoidCallback? onTap}) {
     return ListTile(
       leading: Icon(
         icon,
@@ -214,6 +331,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           fontWeight: FontWeight.bold,
         ),
       ),
+      onTap: onTap,
     );
   }
 } 

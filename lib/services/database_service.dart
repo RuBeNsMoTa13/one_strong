@@ -463,6 +463,58 @@ Por favor, verifique:
     }
   }
 
+  // Atualização de Peso
+  static Future<bool> updateUserWeight(String email, double newWeight) async {
+    try {
+      if (!_isInitialized || !_db.isConnected) {
+        print('[updateUserWeight] Banco de dados não inicializado ou desconectado');
+        await initialize();
+      }
+
+      final userCollection = _db.collection(MongoDBConfig.usersCollection);
+      print('[updateUserWeight] Atualizando peso do usuário: $email');
+      
+      // Busca o usuário atual
+      final userData = await userCollection.findOne(where.eq('email', email));
+      if (userData == null) {
+        print('[updateUserWeight] Usuário não encontrado');
+        return false;
+      }
+
+      // Converte para objeto User
+      final user = User.fromMap(userData);
+      
+      // Adiciona o novo peso ao histórico com o horário de Brasília
+      final now = DateTime.now().toLocal();
+      print('[updateUserWeight] Horário do registro: ${now.toString()}');
+      
+      user.weightHistory.add(WeightHistory(
+        date: now,
+        weight: newWeight,
+      ));
+
+      // Atualiza o peso atual
+      user.weight = newWeight;
+
+      // Atualiza no banco de dados
+      await userCollection.update(
+        where.eq('email', email),
+        {
+          r'$set': {
+            'weight': newWeight,
+            'weightHistory': user.weightHistory.map((w) => w.toMap()).toList(),
+          }
+        },
+      );
+
+      print('[updateUserWeight] Peso atualizado com sucesso');
+      return true;
+    } catch (e) {
+      print('[updateUserWeight] Erro ao atualizar peso: $e');
+      return false;
+    }
+  }
+
   static Future<void> close() async {
     if (_isInitialized) {
       await _db.close();

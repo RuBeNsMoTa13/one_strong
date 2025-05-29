@@ -316,7 +316,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return 'Insira sua altura';
                           }
                           final height = double.tryParse(value.replaceAll(',', '.'));
-                          if (height == null || height < 100 || height > 250) {
+                          if (height == null || height < 30 || height > 250) {
                             return 'Altura inválida';
                           }
                           return null;

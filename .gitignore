@@ -1,3 +1,6 @@
+# Environment configuration
+lib/config/env.dart
+
 # Miscellaneous
 *.class
 *.log

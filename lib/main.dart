@@ -1,16 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'screens/auth/login_screen.dart';
-import 'screens/auth/register_screen.dart';
-import 'screens/home/home_screen.dart';
-import 'screens/workout/workout_form_screen.dart';
-import 'screens/workout/workout_list_screen.dart';
-import 'screens/workout/workout_details_screen.dart';
-import 'screens/profile/profile_screen.dart';
-import 'screens/metrics/metrics_screen.dart';
-import 'screens/home/home_screen.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'routes.dart';
+import 'services/database_service.dart';
+import 'config/mongodb_config.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    // Carregar variáveis de ambiente
+    print('[Main] Carregando variáveis de ambiente...');
+    await dotenv.load(fileName: ".env");
+    
+    // Verificar se as variáveis foram carregadas
+    print('[Main] Variáveis de ambiente carregadas:');
+    print('  MONGODB_USER: ${MongoDBConfig.username}');
+    print('  MONGODB_PASSWORD: ${MongoDBConfig.password.replaceAll(RegExp(r'.'), '*')}'); // Oculta a senha
+    print('  MONGODB_HOST: ${MongoDBConfig.host}');
+    print('  MONGODB_DATABASE: ${MongoDBConfig.database}');
+    print('  PORT: ${MongoDBConfig.port}');
+    
+    // Verificar string de conexão
+    print('[Main] String de conexão montada:');
+    final connString = MongoDBConfig.connectionString;
+    final maskedConnString = connString.replaceAll(
+      RegExp('${MongoDBConfig.password}'), 
+      '*' * MongoDBConfig.password.length
+    );
+    print('  $maskedConnString');
+    
+    // Testar conexão com o banco de dados
+    print('[Main] Testando conexão com o banco de dados...');
+    final connected = await DatabaseService.testConnection();
+    if (!connected) {
+      print('[Main] ERRO: Não foi possível conectar ao banco de dados');
+    } else {
+      print('[Main] Conexão com o banco de dados estabelecida com sucesso');
+    }
+  } catch (e, stackTrace) {
+    print('[Main] Erro na inicialização do app:');
+    print('Erro: $e');
+    print('Stack trace: $stackTrace');
+  }
+  
   runApp(const MyApp());
 }
 
@@ -22,6 +56,15 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Strong One',
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('pt', 'BR'),
+      ],
+      locale: const Locale('pt', 'BR'),
       theme: ThemeData(
         colorScheme: ColorScheme.dark(
           primary: Colors.amber,
@@ -79,17 +122,8 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      initialRoute: '/workout/list',
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/home': (context) => const HomeScreen(),
-        '/workout/list': (context) => const WorkoutListScreen(),
-        '/workout/new': (context) => const WorkoutFormScreen(),
-        '/workout/details': (context) => const WorkoutDetailsScreen(),
-        '/profile': (context) => const ProfileScreen(),
-        '/metrics': (context) => const MetricsScreen(),
-      },
+      initialRoute: AppRoutes.login,
+      routes: AppRoutes.routes,
     );
   }
 }

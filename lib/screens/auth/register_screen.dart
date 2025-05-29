@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import '../../models/user.dart';
+import '../../services/database_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -17,44 +18,143 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _heightController = TextEditingController();
   final _weightController = TextEditingController();
   DateTime? _birthDate;
-  String _selectedGender = 'Masculino';
-  String _selectedGoal = 'Hipertrofia';
+  String _gender = 'Masculino';
+  String _goal = 'Hipertrofia';
   bool _isLoading = false;
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
+  bool _showPassword = false;
+  bool _showConfirmPassword = false;
 
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      locale: const Locale('pt', 'BR'),
-    );
-    if (picked != null && mounted) {
-      setState(() {
-        _birthDate = picked;
-      });
+  final List<String> _goals = [
+    'Hipertrofia',
+    'Emagrecimento',
+    'Força',
+    'Resistência',
+    'Saúde',
+  ];
+
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) {
+      print('[Register] Formulário inválido');
+      return;
     }
-  }
-
-  Future<void> _handleRegister() async {
-    if (!_formKey.currentState!.validate()) return;
+    
     if (_birthDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, selecione sua data de nascimento')),
-      );
+      print('[Register] Data de nascimento não selecionada');
+      _showError('Por favor, selecione sua data de nascimento');
+      return;
+    }
+
+    if (_passwordController.text != _confirmPasswordController.text) {
+      print('[Register] Senhas não coincidem');
+      _showError('As senhas não coincidem');
       return;
     }
 
     setState(() => _isLoading = true);
 
-    // TODO: Implementar lógica de registro
-    await Future.delayed(const Duration(seconds: 2)); // Simulação de loading
+    try {
+      print('\n[Register] Iniciando processo de registro...');
+      print('[Register] Validando dados:');
+      print('  Nome: ${_nameController.text}');
+      print('  Email: ${_emailController.text}');
+      print('  Data de Nascimento: $_birthDate');
+      print('  Gênero: $_gender');
+      print('  Altura: ${_heightController.text}');
+      print('  Peso: ${_weightController.text}');
+      print('  Objetivo: $_goal');
 
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, '/home');
+      // Primeiro, verifica se o e-mail já está em uso
+      print('[Register] Verificando e-mail...');
+      final existingUser = await DatabaseService.getUserByEmail(_emailController.text);
+      if (existingUser != null) {
+        print('[Register] E-mail já está em uso');
+        _showError('Este e-mail já está em uso');
+        return;
+      }
+
+      print('[Register] Criando objeto User...');
+      final user = User(
+        name: _nameController.text,
+        email: _emailController.text,
+        password: _passwordController.text, // TODO: Implementar hash
+        birthDate: _birthDate!,
+        gender: _gender,
+        height: double.parse(_heightController.text.replaceAll(',', '.')),
+        weight: double.parse(_weightController.text.replaceAll(',', '.')),
+        goal: _goal,
+      );
+
+      print('[Register] Tentando criar usuário no banco...');
+      final success = await DatabaseService.createUser(user);
+      
+      if (!success) {
+        print('[Register] Falha ao criar usuário no banco');
+        _showError('Erro ao criar conta. Por favor, tente novamente.');
+        return;
+      }
+
+      print('[Register] Usuário criado com sucesso. Salvando sessão...');
+      // Fazer login após o cadastro
+      await DatabaseService.saveUserSession(user);
+      
+      print('[Register] Redirecionando para home...');
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } catch (e, stackTrace) {
+      print('[Register] Erro ao criar conta:');
+      print('Erro: $e');
+      print('Stack trace: $stackTrace');
+      _showError('Erro ao criar conta: ${e.toString()}');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  Future<void> _selectDate() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
+      firstDate: DateTime.now().subtract(const Duration(days: 365 * 100)),
+      lastDate: DateTime.now().subtract(const Duration(days: 365 * 10)),
+      locale: const Locale('pt', 'BR'),
+    );
+
+    if (date != null) {
+      setState(() => _birthDate = date);
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'OK',
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _heightController.dispose();
+    _weightController.dispose();
+    super.dispose();
   }
 
   @override
@@ -71,18 +171,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Dados Pessoais',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                ),
-                const SizedBox(height: 24),
                 TextFormField(
                   controller: _nameController,
                   decoration: const InputDecoration(
-                    labelText: 'Nome Completo',
-                    prefixIcon: Icon(Icons.person_outline),
+                    labelText: 'Nome',
+                    prefixIcon: Icon(Icons.person),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -95,16 +188,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email_outlined),
+                    labelText: 'E-mail',
+                    prefixIcon: Icon(Icons.email),
                   ),
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Por favor, insira seu email';
+                      return 'Por favor, insira seu e-mail';
                     }
                     if (!value.contains('@')) {
-                      return 'Por favor, insira um email válido';
+                      return 'Por favor, insira um e-mail válido';
                     }
                     return null;
                   },
@@ -114,21 +207,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   controller: _passwordController,
                   decoration: InputDecoration(
                     labelText: 'Senha',
-                    prefixIcon: const Icon(Icons.lock_outline),
+                    prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
+                        _showPassword ? Icons.visibility_off : Icons.visibility,
                       ),
                       onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
+                        setState(() => _showPassword = !_showPassword);
                       },
                     ),
                   ),
-                  obscureText: _obscurePassword,
+                  obscureText: !_showPassword,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Por favor, insira sua senha';
@@ -147,18 +236,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscureConfirmPassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
+                        _showConfirmPassword ? Icons.visibility_off : Icons.visibility,
                       ),
                       onPressed: () {
-                        setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        });
+                        setState(() => _showConfirmPassword = !_showConfirmPassword);
                       },
                     ),
                   ),
-                  obscureText: _obscureConfirmPassword,
+                  obscureText: !_showConfirmPassword,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Por favor, confirme sua senha';
@@ -169,34 +254,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 32),
-                Text(
-                  'Informações Físicas',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                ),
-                const SizedBox(height: 24),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Data de Nascimento',
-                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                const SizedBox(height: 16),
+                InkWell(
+                  onTap: _selectDate,
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Data de Nascimento',
+                      prefixIcon: Icon(Icons.cake),
+                    ),
+                    child: Text(
+                      _birthDate == null
+                          ? 'Selecione sua data de nascimento'
+                          : '${_birthDate!.day.toString().padLeft(2, '0')}/${_birthDate!.month.toString().padLeft(2, '0')}/${_birthDate!.year}',
+                      style: _birthDate == null 
+                          ? Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).hintColor)
+                          : Theme.of(context).textTheme.bodyLarge,
+                    ),
                   ),
-                  subtitle: Text(
-                    _birthDate == null
-                        ? 'Selecione sua data de nascimento'
-                        : DateFormat('dd/MM/yyyy').format(_birthDate!),
-                  ),
-                  trailing: Icon(
-                    Icons.calendar_today,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  onTap: () => _selectDate(context),
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _selectedGender,
+                  value: _gender,
                   decoration: const InputDecoration(
                     labelText: 'Gênero',
                     prefixIcon: Icon(Icons.person_outline),
@@ -217,9 +295,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ],
                   onChanged: (value) {
                     if (value != null) {
-                      setState(() {
-                        _selectedGender = value;
-                      });
+                      setState(() => _gender = value);
                     }
                   },
                 ),
@@ -232,17 +308,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         decoration: const InputDecoration(
                           labelText: 'Altura (cm)',
                           prefixIcon: Icon(Icons.height),
+                          hintText: 'Ex: 175.5',
                         ),
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Obrigatório';
+                            return 'Insira sua altura';
                           }
-                          final height = int.tryParse(value);
+                          final height = double.tryParse(value.replaceAll(',', '.'));
                           if (height == null || height < 100 || height > 250) {
-                            return 'Inválido';
+                            return 'Altura inválida';
                           }
                           return null;
+                        },
+                        onChanged: (value) {
+                          if (value.contains(',')) {
+                            _heightController.text = value.replaceAll(',', '.');
+                            _heightController.selection = TextSelection.fromPosition(
+                              TextPosition(offset: _heightController.text.length),
+                            );
+                          }
                         },
                       ),
                     ),
@@ -252,18 +337,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         controller: _weightController,
                         decoration: const InputDecoration(
                           labelText: 'Peso (kg)',
-                          prefixIcon: Icon(Icons.monitor_weight_outlined),
+                          prefixIcon: Icon(Icons.monitor_weight),
+                          hintText: 'Ex: 75.5',
                         ),
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Obrigatório';
+                            return 'Insira seu peso';
                           }
-                          final weight = double.tryParse(value);
+                          final weight = double.tryParse(value.replaceAll(',', '.'));
                           if (weight == null || weight < 30 || weight > 300) {
-                            return 'Inválido';
+                            return 'Peso inválido';
                           }
                           return null;
+                        },
+                        onChanged: (value) {
+                          if (value.contains(',')) {
+                            _weightController.text = value.replaceAll(',', '.');
+                            _weightController.selection = TextSelection.fromPosition(
+                              TextPosition(offset: _weightController.text.length),
+                            );
+                          }
                         },
                       ),
                     ),
@@ -271,54 +365,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _selectedGoal,
+                  value: _goal,
                   decoration: const InputDecoration(
-                    labelText: 'Objetivo Principal',
+                    labelText: 'Objetivo',
                     prefixIcon: Icon(Icons.track_changes),
                   ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'Hipertrofia',
-                      child: Text('Hipertrofia'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Emagrecimento',
-                      child: Text('Emagrecimento'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Condicionamento',
-                      child: Text('Condicionamento'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Força',
-                      child: Text('Força'),
-                    ),
-                  ],
+                  items: _goals.map((goal) {
+                    return DropdownMenuItem(
+                      value: goal,
+                      child: Text(goal),
+                    );
+                  }).toList(),
                   onChanged: (value) {
                     if (value != null) {
-                      setState(() {
-                        _selectedGoal = value;
-                      });
+                      setState(() => _goal = value);
                     }
                   },
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
                 FilledButton(
-                  onPressed: _isLoading ? null : _handleRegister,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.black),
-                            ),
-                          )
-                        : const Text('Criar Conta'),
-                  ),
+                  onPressed: _isLoading ? null : _register,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Criar Conta'),
                 ),
               ],
             ),
@@ -326,16 +401,5 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    _heightController.dispose();
-    _weightController.dispose();
-    super.dispose();
   }
 } 

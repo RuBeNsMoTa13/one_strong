@@ -353,14 +353,50 @@ Por favor, verifique:
 
   static Future<bool> updateUser(User user) async {
     try {
+      print('\n[Database] Atualizando usuário...');
+      print('  ID: ${user.id}');
+      print('  Nome: ${user.name}');
+      print('  Email: ${user.email}');
+
+      if (!_isInitialized || !_db.isConnected) {
+        print('[Database] Banco não inicializado/conectado. Tentando reconectar...');
+        await initialize();
+      }
+
       final userCollection = _db.collection(MongoDBConfig.usersCollection);
-      await userCollection.update(
+      
+      // Verifica se o usuário existe
+      final existingUser = await userCollection.findOne(mongo.where.eq('_id', user.id));
+      if (existingUser == null) {
+        print('[Database] ERRO: Usuário não encontrado');
+        return false;
+      }
+
+      // Atualiza o usuário
+      final result = await userCollection.replaceOne(
         mongo.where.eq('_id', user.id),
         user.toMap(),
       );
-      return true;
-    } catch (e) {
-      print('Erro ao atualizar usuário: $e');
+
+      if (result.isSuccess) {
+        print('[Database] Usuário atualizado com sucesso');
+        
+        // Atualiza a sessão do usuário
+        await saveUserSession(user);
+        
+        return true;
+      } else {
+        print('[Database] ERRO ao atualizar usuário:');
+        if (result.writeError != null) {
+          print('  Mensagem: ${result.writeError?.errmsg}');
+          print('  Código: ${result.writeError?.code}');
+        }
+        return false;
+      }
+    } catch (e, stackTrace) {
+      print('[Database] ERRO ao atualizar usuário:');
+      print('Erro: $e');
+      print('Stack trace: $stackTrace');
       return false;
     }
   }

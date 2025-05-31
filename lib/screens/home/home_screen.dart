@@ -67,15 +67,6 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
         ];
-      case 2:
-        return [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              // TODO: Implementar tela de configurações
-            },
-          ),
-        ];
       default:
         return null;
     }

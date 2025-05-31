@@ -39,26 +39,42 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
 
   void _startTimer() {
     _timer?.cancel();
-    setState(() {
-      _remainingRestTime = int.parse(_restTimeController.text);
-    });
     
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    if (_restTimeController.text.isNotEmpty) {
       setState(() {
-        if (_remainingRestTime > 0) {
-          _remainingRestTime--;
-        } else {
-          timer.cancel();
-          // Notificar usuário que o descanso acabou
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Descanso finalizado! Próxima série.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        _remainingRestTime = int.parse(_restTimeController.text);
       });
-    });
+      
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        setState(() {
+          if (_remainingRestTime > 0) {
+            _remainingRestTime--;
+          } else {
+            timer.cancel();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(
+                      Icons.timer_off_outlined,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 12),
+                    const Text('Descanso finalizado! Próxima série.'),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                margin: const EdgeInsets.all(8),
+              ),
+            );
+          }
+        });
+      });
+    }
   }
 
   void _nextSet() {
@@ -79,11 +95,12 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
         _currentExerciseIndex++;
         _currentSet = 1;
         _loadInitialData();
+        _startTimer();
       });
     } else {
-      // Treino finalizado
       setState(() {
         _isWorkoutStarted = false;
+        _timer?.cancel();
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -100,6 +117,7 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
       _currentExerciseIndex = 0;
       _currentSet = 1;
       _loadInitialData();
+      _startTimer();
     });
   }
 

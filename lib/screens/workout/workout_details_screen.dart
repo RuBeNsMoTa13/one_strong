@@ -130,11 +130,17 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.workout.name),
+        title: Text(
+          widget.workout.name,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
         actions: [
           if (!_isWorkoutStarted)
             IconButton(
-              icon: const Icon(Icons.edit),
+              icon: const Icon(Icons.edit_outlined),
               onPressed: () {
                 Navigator.pushNamed(
                   context,
@@ -145,159 +151,395 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          if (_isWorkoutStarted) ...[
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: Theme.of(context).colorScheme.primaryContainer,
-              child: Column(
-                children: [
-                  Text(
-                    'Exercício ${_currentExerciseIndex + 1} de ${widget.workout.exercises.length}',
-                    style: Theme.of(context).textTheme.titleMedium,
+      body: Container(
+        color: Theme.of(context).colorScheme.background,
+        child: Column(
+          children: [
+            if (_isWorkoutStarted) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).colorScheme.primary,
+                      Theme.of(context).colorScheme.primary.withOpacity(0.9),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Série $_currentSet de ${widget.workout.exercises[_currentExerciseIndex].sets}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  if (_remainingRestTime > 0) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      'Descanso: $_remainingRestTime s',
-                      style: Theme.of(context).textTheme.headlineMedium,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
                   ],
-                ],
-              ),
-            ),
-          ],
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: widget.workout.exercises.length,
-              itemBuilder: (context, index) {
-                final exercise = widget.workout.exercises[index];
-                final isCurrentExercise = _isWorkoutStarted && index == _currentExerciseIndex;
-                
-                return Card(
-                  color: isCurrentExercise
-                      ? Theme.of(context).colorScheme.primaryContainer
-                      : null,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (exercise.imageUrl != null)
+                ),
+                child: SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
                           Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.grey.shade300,
-                                width: 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: AspectRatio(
-                                aspectRatio: 1,
-                                child: Image.asset(
-                                  exercise.imageUrl!,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    print('Erro ao carregar imagem: $error');
-                                    return Container(
-                                      color: Colors.grey.shade200,
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.image_not_supported,
-                                            color: Colors.grey.shade400,
-                                            size: 48,
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            'Erro ao carregar imagem',
-                                            style: TextStyle(
-                                              color: Colors.grey.shade600,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
+                            child: const Icon(
+                              Icons.fitness_center,
+                              color: Colors.white,
+                              size: 24,
                             ),
                           ),
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: isCurrentExercise
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.secondary,
-                              child: Text(
-                                '${index + 1}',
-                                style: const TextStyle(color: Colors.white),
-                              ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Exercício ${_currentExerciseIndex + 1} de ${widget.workout.exercises.length}',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'Série $_currentSet de ${widget.workout.exercises[_currentExerciseIndex].sets}',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                        ),
+                      ),
+                      if (_remainingRestTime > 0) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.timer_outlined,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                '$_remainingRestTime s',
+                                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: widget.workout.exercises.length,
+                itemBuilder: (context, index) {
+                  final exercise = widget.workout.exercises[index];
+                  final isCurrentExercise = _isWorkoutStarted && index == _currentExerciseIndex;
+                  
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: isCurrentExercise
+                          ? BorderSide(
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 2,
+                            )
+                          : BorderSide.none,
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isCurrentExercise
+                            ? Theme.of(context).colorScheme.primary.withOpacity(0.05)
+                            : Theme.of(context).colorScheme.surface,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (exercise.imageUrl != null)
+                              Stack(
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    constraints: const BoxConstraints(
+                                      maxHeight: 300,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: Colors.grey.shade100,
+                                          width: 1,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Image.asset(
+                                      exercise.imageUrl!,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        print('Erro ao carregar imagem: $error');
+                                        return Container(
+                                          color: Colors.grey.shade50,
+                                          padding: const EdgeInsets.all(32),
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.image_not_supported_outlined,
+                                                color: Colors.grey.shade300,
+                                                size: 48,
+                                              ),
+                                              const SizedBox(height: 16),
+                                              Text(
+                                                'Não foi possível carregar a imagem',
+                                                style: TextStyle(
+                                                  color: Colors.grey.shade500,
+                                                  fontSize: 14,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: CircleAvatar(
+                                      backgroundColor: isCurrentExercise
+                                          ? Theme.of(context).colorScheme.primary
+                                          : Theme.of(context).colorScheme.secondary.withOpacity(0.8),
+                                      radius: 20,
+                                      child: Text(
+                                        '${index + 1}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.all(16),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     exercise.name,
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                       fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${exercise.sets} séries x ${exercise.reps} reps',
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: Colors.grey.shade700,
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      '${exercise.sets} séries × ${exercise.reps} repetições',
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.primary,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
                                     ),
                                   ),
                                   if (exercise.notes?.isNotEmpty == true) ...[
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 16),
                                     Container(
-                                      padding: const EdgeInsets.all(8),
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.shade100,
-                                        borderRadius: BorderRadius.circular(8),
+                                        color: Colors.grey.shade50,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Colors.grey.shade200,
+                                        ),
                                       ),
                                       child: Row(
                                         children: [
                                           Icon(
                                             Icons.info_outline,
-                                            size: 16,
-                                            color: Colors.grey.shade700,
+                                            size: 20,
+                                            color: Theme.of(context).colorScheme.primary,
                                           ),
-                                          const SizedBox(width: 8),
+                                          const SizedBox(width: 12),
                                           Expanded(
                                             child: Text(
                                               exercise.notes!,
                                               style: TextStyle(
-                                                color: Colors.grey.shade700,
-                                                fontSize: 12,
+                                                color: Colors.black87,
+                                                fontSize: 14,
+                                                height: 1.4,
                                               ),
                                             ),
                                           ),
                                         ],
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextField(
+                                          controller: _weightController,
+                                          decoration: InputDecoration(
+                                            labelText: 'Peso (kg)',
+                                            labelStyle: TextStyle(
+                                              color: Colors.black87,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: BorderSide(
+                                                color: Colors.amber,
+                                                width: 2,
+                                              ),
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: BorderSide(
+                                                color: Colors.amber.shade400,
+                                                width: 2,
+                                              ),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: BorderSide(
+                                                color: Colors.amber.shade600,
+                                                width: 2,
+                                              ),
+                                            ),
+                                            filled: true,
+                                            fillColor: Colors.grey.shade50,
+                                            enabled: !_isWorkoutStarted || isCurrentExercise,
+                                            prefixIcon: Icon(
+                                              Icons.fitness_center,
+                                              color: Colors.amber.shade600,
+                                              size: 24,
+                                            ),
+                                          ),
+                                          keyboardType: TextInputType.number,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.black,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: TextField(
+                                          controller: _restTimeController,
+                                          decoration: InputDecoration(
+                                            labelText: 'Descanso (s)',
+                                            labelStyle: TextStyle(
+                                              color: Colors.black87,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: BorderSide(
+                                                color: Colors.amber,
+                                                width: 2,
+                                              ),
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: BorderSide(
+                                                color: Colors.amber.shade400,
+                                                width: 2,
+                                              ),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: BorderSide(
+                                                color: Colors.amber.shade600,
+                                                width: 2,
+                                              ),
+                                            ),
+                                            filled: true,
+                                            fillColor: Colors.grey.shade50,
+                                            enabled: !_isWorkoutStarted || isCurrentExercise,
+                                            prefixIcon: Icon(
+                                              Icons.timer_outlined,
+                                              color: Colors.amber.shade600,
+                                              size: 24,
+                                            ),
+                                          ),
+                                          keyboardType: TextInputType.number,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.black,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (!_isWorkoutStarted || isCurrentExercise) ...[
+                                    const SizedBox(height: 16),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: FilledButton.icon(
+                                        onPressed: () => _updateExerciseDetails(index),
+                                        icon: const Icon(Icons.save_outlined),
+                                        label: const Text('Salvar Alterações'),
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -306,81 +548,72 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _weightController,
-                                decoration: InputDecoration(
-                                  labelText: 'Peso (kg)',
-                                  border: const OutlineInputBorder(),
-                                  filled: true,
-                                  fillColor: isCurrentExercise ? Colors.white : null,
-                                ),
-                                keyboardType: TextInputType.number,
-                                enabled: !_isWorkoutStarted || isCurrentExercise,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: TextField(
-                                controller: _restTimeController,
-                                decoration: InputDecoration(
-                                  labelText: 'Descanso (s)',
-                                  border: const OutlineInputBorder(),
-                                  filled: true,
-                                  fillColor: isCurrentExercise ? Colors.white : null,
-                                ),
-                                keyboardType: TextInputType.number,
-                                enabled: !_isWorkoutStarted || isCurrentExercise,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (!_isWorkoutStarted || isCurrentExercise) ...[
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: FilledButton.icon(
-                                  onPressed: () => _updateExerciseDetails(index),
-                                  icon: const Icon(Icons.save),
-                                  label: const Text('Salvar Alterações'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: SafeArea(
-        child: Padding(
+        child: Container(
           padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
+              ),
+            ],
+          ),
           child: _isWorkoutStarted
               ? Row(
                   children: [
                     Expanded(
-                      child: FilledButton(
+                      child: FilledButton.icon(
                         onPressed: _nextSet,
-                        child: Text(_currentSet < widget.workout.exercises[_currentExerciseIndex].sets
-                            ? 'Próxima Série'
-                            : 'Próximo Exercício'),
+                        icon: Icon(_currentSet < widget.workout.exercises[_currentExerciseIndex].sets
+                            ? Icons.arrow_forward
+                            : Icons.skip_next),
+                        label: Text(
+                          _currentSet < widget.workout.exercises[_currentExerciseIndex].sets
+                              ? 'Próxima Série'
+                              : 'Próximo Exercício',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 )
               : FilledButton.icon(
                   onPressed: _startWorkout,
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Iniciar Treino'),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 28),
+                  label: const Text(
+                    'Iniciar Treino',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
         ),
       ),

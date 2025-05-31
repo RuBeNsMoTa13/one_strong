@@ -3,6 +3,7 @@ import 'dart:async';
 import '../../services/database_service.dart';
 import '../../models/workout_template.dart';
 import '../../routes.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class WorkoutDetailsScreen extends StatefulWidget {
   final WorkoutTemplate workout;
@@ -28,11 +29,18 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
   int _currentExerciseTime = 0;
   final _weightController = TextEditingController();
   final _restTimeController = TextEditingController();
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
     super.initState();
     _loadInitialData();
+    _initializeAudio();
+  }
+
+  Future<void> _initializeAudio() async {
+    await _audioPlayer.setSource(AssetSource('sounds/timer-end.wav'));
+    await _audioPlayer.setVolume(1.0);
   }
 
   void _loadInitialData() {
@@ -77,6 +85,7 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
           } else {
             timer.cancel();
             _startExerciseTimer(); // Reinicia o timer do exercício após o descanso
+            _playTimerEndSound();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Row(
@@ -100,6 +109,15 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
           }
         });
       });
+    }
+  }
+
+  Future<void> _playTimerEndSound() async {
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.resume();
+    } catch (e) {
+      print('Erro ao reproduzir o som: $e');
     }
   }
 
@@ -228,6 +246,7 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
     _workoutTimer?.cancel();
     _weightController.dispose();
     _restTimeController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 

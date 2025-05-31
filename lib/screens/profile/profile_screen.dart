@@ -296,10 +296,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Erro ao carregar dados do usuário'),
+              const Text('Erro ao carregar dados'),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.login),
+                onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
                 child: const Text('Voltar para o login'),
               ),
             ],
@@ -309,10 +309,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Perfil'),
-      ),
+      appBar: _isEditing ? AppBar(
+        title: const Text('Editar Perfil'),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () {
+            setState(() {
+              _isEditing = false;
+              _loadUserData();
+            });
+          },
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.check),
+            onPressed: _saveProfile,
+          ),
+        ],
+      ) : null,
       body: SingleChildScrollView(
         child: Form(
           key: _formKey,

@@ -338,6 +338,7 @@ class _MetricsScreenState extends State<MetricsScreen> {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
+          automaticallyImplyLeading: false,
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Peso'),
@@ -1194,6 +1195,35 @@ class _MetricsScreenState extends State<MetricsScreen> {
   }
 
   Widget _buildExerciseHistoryCard() {
+    if (_exerciseHistory.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Histórico de Exercícios',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 16),
+              const Center(
+                child: Text('Nenhum histórico de exercício disponível'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Encontra o nome dos exercícios
+    final exerciseNames = <String, String>{};
+    for (final workout in _workouts!) {
+      for (final exercise in workout.exercises) {
+        exerciseNames[exercise.exerciseId.toHexString()] = exercise.name;
+      }
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1205,9 +1235,118 @@ class _MetricsScreenState extends State<MetricsScreen> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 16),
-            // TODO: Implementar histórico detalhado dos exercícios
-            const Center(
-              child: Text('Em desenvolvimento'),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _exerciseHistory.length,
+              itemBuilder: (context, index) {
+                final exerciseId = _exerciseHistory.keys.elementAt(index);
+                final history = _exerciseHistory[exerciseId]!;
+                final name = exerciseNames[exerciseId] ?? 'Exercício Desconhecido';
+
+                // Ordena o histórico por data, do mais recente para o mais antigo
+                history.sort((a, b) => b.date.compareTo(a.date));
+
+                return ExpansionTile(
+                  title: Text(
+                    name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Último peso: ${history.first.weight.toStringAsFixed(1)} kg',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
+                  ),
+                  children: [
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: history.length,
+                      itemBuilder: (context, i) {
+                        final record = history[i];
+                        final previousWeight = i < history.length - 1 ? history[i + 1].weight : record.weight;
+                        final weightDiff = record.weight - previousWeight;
+                        final hasChange = i < history.length - 1;
+
+                        return ListTile(
+                          dense: true,
+                          title: Row(
+                            children: [
+                              Text(
+                                '${record.weight.toStringAsFixed(1)} kg',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              if (hasChange) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: weightDiff > 0
+                                        ? Colors.green.withOpacity(0.1)
+                                        : weightDiff < 0
+                                            ? Colors.red.withOpacity(0.1)
+                                            : Colors.grey.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        weightDiff > 0
+                                            ? Icons.arrow_upward
+                                            : weightDiff < 0
+                                                ? Icons.arrow_downward
+                                                : Icons.remove,
+                                        size: 16,
+                                        color: weightDiff > 0
+                                            ? Colors.green
+                                            : weightDiff < 0
+                                                ? Colors.red
+                                                : Colors.grey,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${weightDiff > 0 ? '+' : ''}${weightDiff.toStringAsFixed(1)} kg',
+                                        style: TextStyle(
+                                          color: weightDiff > 0
+                                              ? Colors.green
+                                              : weightDiff < 0
+                                                  ? Colors.red
+                                                  : Colors.grey,
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          subtitle: Text(
+                            _formatDateForTitle(record.date),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          trailing: Text(
+                            '${record.completedSets} séries × ${record.completedReps} reps',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),

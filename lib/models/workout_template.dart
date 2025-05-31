@@ -195,20 +195,12 @@ class ExerciseProgress {
   }
 
   factory ExerciseProgress.fromMap(Map<String, dynamic> map) {
-    try {
-      return ExerciseProgress(
-        date: map['date'] as DateTime,
-        weight: map['weight'] as double,
-        completedSets: map['completedSets'] as int,
-        completedReps: map['completedReps'] as int,
-      );
-    } catch (e, stackTrace) {
-      print('[ExerciseProgress] ERRO ao converter mapa:');
-      print('Erro: $e');
-      print('Stack trace: $stackTrace');
-      print('Mapa recebido: $map');
-      rethrow;
-    }
+    return ExerciseProgress(
+      date: map['date'] as DateTime,
+      weight: (map['weight'] as num).toDouble(),
+      completedSets: (map['completedSets'] as num?)?.toInt() ?? 0,
+      completedReps: (map['completedReps'] as num?)?.toInt() ?? 0,
+    );
   }
 
   @override

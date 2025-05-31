@@ -192,27 +192,83 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                       children: [
                         Row(
                           children: [
-                            CircleAvatar(
-                              backgroundColor: isCurrentExercise
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.secondary,
-                              child: Text(
-                                '${index + 1}',
-                                style: const TextStyle(color: Colors.white),
+                            if (exercise.imageUrl != null)
+                              Expanded(
+                                flex: 1,
+                                child: Container(
+                                  margin: const EdgeInsets.only(right: 16),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: AspectRatio(
+                                    aspectRatio: 1,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.asset(
+                                        exercise.imageUrl!,
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          print('Erro ao carregar imagem: $error');
+                                          return Container(
+                                            color: Colors.grey.shade200,
+                                            child: const Center(
+                                              child: Icon(
+                                                Icons.image_not_supported,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 16),
                             Expanded(
+                              flex: 2,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    exercise.name,
-                                    style: Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                  Text(
-                                    '${exercise.sets} séries x ${exercise.reps} reps',
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                  Row(
+                                    children: [
+                                      CircleAvatar(
+                                        backgroundColor: isCurrentExercise
+                                            ? Theme.of(context).colorScheme.primary
+                                            : Theme.of(context).colorScheme.secondary,
+                                        child: Text(
+                                          '${index + 1}',
+                                          style: const TextStyle(color: Colors.white),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              exercise.name,
+                                              style: Theme.of(context).textTheme.titleMedium,
+                                            ),
+                                            Text(
+                                              '${exercise.sets} séries x ${exercise.reps} reps',
+                                              style: Theme.of(context).textTheme.bodyMedium,
+                                            ),
+                                            if (exercise.imageUrl == null)
+                                              Text(
+                                                'Sem imagem demonstrativa',
+                                                style: TextStyle(
+                                                  color: Colors.grey.shade600,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -291,6 +347,41 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                 ),
         ),
       ),
+    );
+  }
+
+  Widget _buildExerciseDetails(WorkoutExerciseTemplate exercise) {
+    return Column(
+      children: [
+        if (exercise.imageUrl != null)
+          Container(
+            height: 200,
+            width: double.infinity,
+            margin: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                exercise.imageUrl!,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        Text(
+          exercise.name,
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        // ... existing code ...
+      ],
     );
   }
 } 

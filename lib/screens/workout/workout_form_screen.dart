@@ -362,6 +362,7 @@ class _ExerciseFormSheetState extends State<_ExerciseFormSheet> {
   final _weightController = TextEditingController();
   final _restTimeController = TextEditingController();
   final _notesController = TextEditingController();
+  String? _selectedImageUrl;
 
   @override
   void initState() {
@@ -373,68 +374,143 @@ class _ExerciseFormSheetState extends State<_ExerciseFormSheet> {
       _weightController.text = widget.exercise!.weight?.toString() ?? '';
       _restTimeController.text = widget.exercise!.restTime.toString();
       _notesController.text = widget.exercise!.notes ?? '';
+      _selectedImageUrl = widget.exercise!.imageUrl;
     }
   }
 
-  void _handleSave() {
-    if (!_formKey.currentState!.validate()) return;
+  static const List<String> _availableImages = [
+    'assets/images/exercises/agachamento.gif',
+    'assets/images/exercises/rosca_direta.gif',
+  ];
 
-    final exercise = WorkoutExerciseTemplate(
-      exerciseId: widget.exercise?.exerciseId ?? mongo.ObjectId(),
-      name: _nameController.text,
-      sets: int.parse(_setsController.text),
-      reps: _repsController.text,
-      weight: double.tryParse(_weightController.text),
-      restTime: int.parse(_restTimeController.text),
-      notes: _notesController.text.isEmpty ? null : _notesController.text,
+  void _selectImage() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Selecione uma imagem'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 400,
+          child: Column(
+            children: [
+              Expanded(
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: _availableImages.length,
+                  itemBuilder: (context, index) {
+                    final imagePath = _availableImages[index];
+                    final isSelected = _selectedImageUrl == imagePath;
+                    final exerciseName = imagePath.split('/').last.split('.').first;
+                    
+                    return InkWell(
+                      onTap: () {
+                        setState(() {
+                          _selectedImageUrl = imagePath;
+                        });
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: isSelected
+                                ? Theme.of(context).primaryColor
+                                : Colors.grey.shade300,
+                            width: isSelected ? 2 : 1,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(7),
+                                child: Image.asset(
+                                  imagePath,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    print('Erro ao carregar imagem: $error');
+                                    return Container(
+                                      color: Colors.grey.shade200,
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.image_not_supported,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: const BorderRadius.only(
+                                  bottomLeft: Radius.circular(7),
+                                  bottomRight: Radius.circular(7),
+                                ),
+                              ),
+                              child: Text(
+                                exerciseName.replaceAll('_', ' ').toUpperCase(),
+                                style: const TextStyle(fontSize: 12),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Clique em uma imagem para selecioná-la',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
-
-    widget.onSave(exercise);
-    Navigator.pop(context);
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _setsController.dispose();
-    _repsController.dispose();
-    _weightController.dispose();
-    _restTimeController.dispose();
-    _notesController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom,
         left: 16,
         right: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        top: 16,
       ),
       child: Form(
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              widget.exercise == null
-                  ? 'Adicionar Exercício'
-                  : 'Editar Exercício',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(
-                labelText: 'Nome do Exercício',
-                prefixIcon: Icon(Icons.fitness_center),
+                labelText: 'Nome do exercício',
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Obrigatório';
+                  return 'Por favor, insira o nome do exercício';
                 }
                 return null;
               },
@@ -447,16 +523,11 @@ class _ExerciseFormSheetState extends State<_ExerciseFormSheet> {
                     controller: _setsController,
                     decoration: const InputDecoration(
                       labelText: 'Séries',
-                      prefixIcon: Icon(Icons.repeat),
                     ),
                     keyboardType: TextInputType.number,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Obrigatório';
-                      }
-                      final sets = int.tryParse(value);
-                      if (sets == null || sets <= 0) {
-                        return 'Inválido';
+                        return 'Insira o número de séries';
                       }
                       return null;
                     },
@@ -468,57 +539,10 @@ class _ExerciseFormSheetState extends State<_ExerciseFormSheet> {
                     controller: _repsController,
                     decoration: const InputDecoration(
                       labelText: 'Repetições',
-                      prefixIcon: Icon(Icons.numbers),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Obrigatório';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _weightController,
-                    decoration: const InputDecoration(
-                      labelText: 'Peso (kg)',
-                      prefixIcon: Icon(Icons.monitor_weight_outlined),
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Obrigatório';
-                      }
-                      final weight = double.tryParse(value);
-                      if (weight == null || weight < 0) {
-                        return 'Inválido';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _restTimeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Descanso (s)',
-                      prefixIcon: Icon(Icons.timer_outlined),
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Obrigatório';
-                      }
-                      final time = int.tryParse(value);
-                      if (time == null || time <= 0) {
-                        return 'Inválido';
+                        return 'Insira as repetições';
                       }
                       return null;
                     },
@@ -528,17 +552,99 @@ class _ExerciseFormSheetState extends State<_ExerciseFormSheet> {
             ),
             const SizedBox(height: 16),
             TextFormField(
+              controller: _restTimeController,
+              decoration: const InputDecoration(
+                labelText: 'Tempo de descanso (segundos)',
+              ),
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Insira o tempo de descanso';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
               controller: _notesController,
               decoration: const InputDecoration(
                 labelText: 'Observações',
-                prefixIcon: Icon(Icons.notes),
               ),
-              maxLines: 3,
+              maxLines: 2,
             ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _handleSave,
-              child: const Text('Salvar Exercício'),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _selectImage,
+              icon: const Icon(Icons.image),
+              label: const Text('Selecionar Imagem'),
+            ),
+            if (_selectedImageUrl != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                constraints: const BoxConstraints(
+                  maxWidth: 200,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(7),
+                    child: Image.asset(
+                      _selectedImageUrl!,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        print('Erro ao carregar imagem: $error');
+                        return Container(
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.image_not_supported,
+                                  color: Colors.grey,
+                                  size: 32,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Erro ao carregar imagem',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                if (_formKey.currentState!.validate()) {
+                  final exercise = WorkoutExerciseTemplate(
+                    exerciseId: widget.exercise?.exerciseId ?? mongo.ObjectId(),
+                    name: _nameController.text,
+                    sets: int.parse(_setsController.text),
+                    reps: _repsController.text,
+                    weight: double.tryParse(_weightController.text),
+                    restTime: int.parse(_restTimeController.text),
+                    notes: _notesController.text.isEmpty ? null : _notesController.text,
+                    imageUrl: _selectedImageUrl,
+                  );
+                  widget.onSave(exercise);
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Salvar'),
             ),
           ],
         ),

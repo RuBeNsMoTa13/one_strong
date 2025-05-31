@@ -107,6 +107,7 @@ class WorkoutExerciseTemplate {
   final String? notes;
   bool isCompleted;
   List<ExerciseProgress> progressHistory;
+  final String? imageUrl;
 
   WorkoutExerciseTemplate({
     required this.exerciseId,
@@ -118,6 +119,7 @@ class WorkoutExerciseTemplate {
     this.notes,
     this.isCompleted = false,
     List<ExerciseProgress>? progressHistory,
+    this.imageUrl,
   }) : progressHistory = progressHistory ?? [];
 
   Map<String, dynamic> toMap() {
@@ -131,6 +133,7 @@ class WorkoutExerciseTemplate {
       'notes': notes,
       'isCompleted': isCompleted,
       'progressHistory': progressHistory.map((p) => p.toMap()).toList(),
+      'imageUrl': imageUrl,
     };
   }
 
@@ -152,6 +155,7 @@ class WorkoutExerciseTemplate {
         progressHistory: (map['progressHistory'] as List?)
             ?.map((p) => ExerciseProgress.fromMap(p as Map<String, dynamic>))
             .toList(),
+        imageUrl: map['imageUrl'] as String?,
       );
     } catch (e, stackTrace) {
       print('[WorkoutExerciseTemplate] ERRO ao converter mapa:');

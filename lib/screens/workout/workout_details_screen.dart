@@ -21,7 +21,11 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
   int _currentExerciseIndex = 0;
   int _currentSet = 1;
   int _remainingRestTime = 0;
-  Timer? _timer;
+  Timer? _restTimer;
+  Timer? _workoutTimer;
+  Timer? _exerciseTimer;
+  int _totalWorkoutTime = 0;
+  int _currentExerciseTime = 0;
   final _weightController = TextEditingController();
   final _restTimeController = TextEditingController();
 
@@ -37,20 +41,42 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
     _restTimeController.text = exercise.restTime.toString();
   }
 
-  void _startTimer() {
-    _timer?.cancel();
+  void _startWorkoutTimer() {
+    _workoutTimer?.cancel();
+    _totalWorkoutTime = 0;
+    _workoutTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _totalWorkoutTime++;
+      });
+    });
+  }
+
+  void _startExerciseTimer() {
+    _exerciseTimer?.cancel();
+    _currentExerciseTime = 0;
+    _exerciseTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _currentExerciseTime++;
+      });
+    });
+  }
+
+  void _startRestTimer() {
+    _restTimer?.cancel();
+    _exerciseTimer?.cancel();
     
     if (_restTimeController.text.isNotEmpty) {
       setState(() {
         _remainingRestTime = int.parse(_restTimeController.text);
       });
-      
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    
+      _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         setState(() {
           if (_remainingRestTime > 0) {
             _remainingRestTime--;
           } else {
             timer.cancel();
+            _startExerciseTimer(); // Reinicia o timer do exercício após o descanso
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Row(
@@ -82,7 +108,7 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
     if (_currentSet < exercise.sets) {
       setState(() {
         _currentSet++;
-        _startTimer();
+        _startRestTimer();
       });
     } else {
       _nextExercise();
@@ -95,19 +121,77 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
         _currentExerciseIndex++;
         _currentSet = 1;
         _loadInitialData();
-        _startTimer();
+        _startExerciseTimer(); // Inicia o timer do novo exercício
       });
     } else {
-      setState(() {
-        _isWorkoutStarted = false;
-        _timer?.cancel();
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Parabéns! Treino finalizado!'),
-          backgroundColor: Colors.green,
+      _finishWorkout();
+    }
+  }
+
+  void _finishWorkout() {
+    setState(() {
+      _isWorkoutStarted = false;
+      _restTimer?.cancel();
+      _exerciseTimer?.cancel();
+      _workoutTimer?.cancel();
+    });
+    
+    // Cria um novo template com a sessão atualizada
+    final updatedWorkout = WorkoutTemplate(
+      id: widget.workout.id,
+      name: widget.workout.name,
+      description: widget.workout.description,
+      difficulty: widget.workout.difficulty,
+      category: widget.workout.category,
+      exercises: widget.workout.exercises,
+      isPreset: widget.workout.isPreset,
+      createdBy: widget.workout.createdBy,
+      isFavorite: widget.workout.isFavorite,
+      lastWorkout: WorkoutSession(
+        startTime: DateTime.now().subtract(Duration(seconds: _totalWorkoutTime)),
+        endTime: DateTime.now(),
+        isCompleted: true,
+        exerciseProgress: [], // TODO: Implementar progresso dos exercícios
+      ),
+    );
+    
+    DatabaseService.updateWorkoutTemplate(updatedWorkout);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(
+              Icons.celebration,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Parabéns! Treino finalizado em ${_formatDuration(_totalWorkoutTime)}!',
+            ),
+          ],
         ),
-      );
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        margin: const EdgeInsets.all(8),
+      ),
+    );
+  }
+
+  String _formatDuration(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final remainingSeconds = seconds % 60;
+    
+    if (hours > 0) {
+      return '${hours}h ${minutes}m ${remainingSeconds}s';
+    } else if (minutes > 0) {
+      return '${minutes}m ${remainingSeconds}s';
+    } else {
+      return '${remainingSeconds}s';
     }
   }
 
@@ -117,7 +201,8 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
       _currentExerciseIndex = 0;
       _currentSet = 1;
       _loadInitialData();
-      _startTimer();
+      _startWorkoutTimer();
+      _startExerciseTimer();
     });
   }
 
@@ -138,7 +223,9 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _restTimer?.cancel();
+    _exerciseTimer?.cancel();
+    _workoutTimer?.cancel();
     _weightController.dispose();
     _restTimeController.dispose();
     super.dispose();
@@ -172,9 +259,9 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
       body: Container(
         color: Theme.of(context).colorScheme.background,
         child: Column(
-          children: [
-            if (_isWorkoutStarted) ...[
-              Container(
+        children: [
+          if (_isWorkoutStarted) ...[
+            Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
                 decoration: BoxDecoration(
@@ -195,34 +282,75 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                   ],
                 ),
                 child: SafeArea(
-                  child: Column(
+              child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.fitness_center,
-                              color: Colors.white,
-                              size: 24,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Tempo Total',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.timer_outlined,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    _formatDuration(_totalWorkoutTime),
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Exercício ${_currentExerciseIndex + 1} de ${widget.workout.exercises.length}',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                          if (_remainingRestTime == 0)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                const Text(
+                                  'Tempo do Exercício',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.directions_run,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      _formatDuration(_currentExerciseTime),
+                                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          ),
                         ],
-                      ),
+                  ),
                       const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -231,14 +359,14 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          'Série $_currentSet de ${widget.workout.exercises[_currentExerciseIndex].sets}',
+                    'Série $_currentSet de ${widget.workout.exercises[_currentExerciseIndex].sets}',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: Colors.white.withOpacity(0.9),
                           ),
                         ),
-                      ),
-                      if (_remainingRestTime > 0) ...[
-                        const SizedBox(height: 16),
+                  ),
+                  if (_remainingRestTime > 0) ...[
+                    const SizedBox(height: 16),
                         Container(
                           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
                           decoration: BoxDecoration(
@@ -258,7 +386,7 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                                 size: 28,
                               ),
                               const SizedBox(width: 12),
-                              Text(
+                    Text(
                                 '$_remainingRestTime s',
                                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                                   color: Colors.white,
@@ -267,21 +395,21 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ],
+                    ),
+                  ],
+                ],
                   ),
-                ),
               ),
-            ],
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: widget.workout.exercises.length,
-                itemBuilder: (context, index) {
-                  final exercise = widget.workout.exercises[index];
-                  final isCurrentExercise = _isWorkoutStarted && index == _currentExerciseIndex;
-                  
+            ),
+          ],
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: widget.workout.exercises.length,
+              itemBuilder: (context, index) {
+                final exercise = widget.workout.exercises[index];
+                final isCurrentExercise = _isWorkoutStarted && index == _currentExerciseIndex;
+                
                   return Container(
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
@@ -308,12 +436,12 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                       clipBehavior: Clip.antiAlias,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: isCurrentExercise
+                  color: isCurrentExercise
                             ? Theme.of(context).colorScheme.primary.withOpacity(0.05)
                             : Theme.of(context).colorScheme.surface,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (exercise.imageUrl != null)
                               Stack(
@@ -366,20 +494,20 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                                     top: 8,
                                     right: 8,
                                     child: CircleAvatar(
-                                      backgroundColor: isCurrentExercise
-                                          ? Theme.of(context).colorScheme.primary
+                              backgroundColor: isCurrentExercise
+                                  ? Theme.of(context).colorScheme.primary
                                           : Theme.of(context).colorScheme.secondary.withOpacity(0.8),
                                       radius: 20,
-                                      child: Text(
-                                        '${index + 1}',
+                              child: Text(
+                                '${index + 1}',
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                    ),
-                                  ),
+                              ),
+                            ),
                                 ],
                               ),
                             Padding(
@@ -439,19 +567,19 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                                                 height: 1.4,
                                               ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: TextField(
-                                          controller: _weightController,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _weightController,
                                           decoration: InputDecoration(
-                                            labelText: 'Peso (kg)',
+                                  labelText: 'Peso (kg)',
                                             labelStyle: TextStyle(
                                               color: Colors.black87,
                                               fontWeight: FontWeight.w500,
@@ -485,21 +613,21 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                                               color: Colors.amber.shade600,
                                               size: 24,
                                             ),
-                                          ),
-                                          keyboardType: TextInputType.number,
+                                ),
+                                keyboardType: TextInputType.number,
                                           style: const TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.w500,
                                             color: Colors.black,
                                           ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: TextField(
-                                          controller: _restTimeController,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: TextField(
+                                controller: _restTimeController,
                                           decoration: InputDecoration(
-                                            labelText: 'Descanso (s)',
+                                  labelText: 'Descanso (s)',
                                             labelStyle: TextStyle(
                                               color: Colors.black87,
                                               fontWeight: FontWeight.w500,
@@ -533,8 +661,8 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                                               color: Colors.amber.shade600,
                                               size: 24,
                                             ),
-                                          ),
-                                          keyboardType: TextInputType.number,
+                                ),
+                                keyboardType: TextInputType.number,
                                           style: const TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.w500,
@@ -566,13 +694,13 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                             ),
                           ],
                         ),
-                      ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
-          ],
+          ),
+        ],
         ),
       ),
       bottomNavigationBar: SafeArea(
@@ -599,7 +727,7 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                             : Icons.skip_next),
                         label: Text(
                           _currentSet < widget.workout.exercises[_currentExerciseIndex].sets
-                              ? 'Próxima Série'
+                            ? 'Próxima Série'
                               : 'Próximo Exercício',
                           style: const TextStyle(
                             fontSize: 16,

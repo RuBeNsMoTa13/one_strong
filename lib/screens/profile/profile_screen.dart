@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../models/user.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/database_service.dart';
+import '../../../routes.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -138,7 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const Text('Erro ao carregar dados do usuário'),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.login),
                 child: const Text('Voltar para o login'),
               ),
             ],
@@ -148,17 +149,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Perfil'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              // TODO: Implementar tela de configurações
-            },
-          ),
-        ],
-      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

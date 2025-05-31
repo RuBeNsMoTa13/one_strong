@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:mongo_dart/mongo_dart.dart' as mongo;
+import '../../models/workout_template.dart';
+import '../../services/database_service.dart';
+import '../../services/auth_service.dart';
+import '../../routes.dart';
 
 class WorkoutListScreen extends StatefulWidget {
   const WorkoutListScreen({super.key});
@@ -10,209 +15,331 @@ class WorkoutListScreen extends StatefulWidget {
 class _WorkoutListScreenState extends State<WorkoutListScreen> {
   String _selectedFilter = 'Todos';
   final List<String> _filters = ['Todos', 'Em andamento', 'Concluídos', 'Favoritos'];
+  List<WorkoutTemplate> _templates = [];
+  bool _isLoading = true;
+  String? _error;
+  mongo.ObjectId? _userId;
 
-  // TODO: Substituir por dados reais do banco
-  final List<Map<String, dynamic>> _mockWorkouts = [
-    {
-      'name': 'Treino A - Peito e Tríceps',
-      'description': 'Foco em hipertrofia com exercícios compostos',
-      'duration': 60,
-      'difficulty': 'Intermediário',
-      'exercises': 8,
-      'isCompleted': false,
-      'isFavorite': true,
-    },
-    {
-      'name': 'Treino B - Costas e Bíceps',
-      'description': 'Foco em força com exercícios básicos',
-      'duration': 45,
-      'difficulty': 'Avançado',
-      'exercises': 6,
-      'isCompleted': true,
-      'isFavorite': false,
-    },
-    {
-      'name': 'Treino C - Pernas',
-      'description': 'Treino completo de membros inferiores',
-      'duration': 75,
-      'difficulty': 'Intermediário',
-      'exercises': 10,
-      'isCompleted': false,
-      'isFavorite': true,
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _initializeScreen();
+  }
 
-  List<Map<String, dynamic>> get _filteredWorkouts {
-    if (_selectedFilter == 'Todos') return _mockWorkouts;
-    if (_selectedFilter == 'Em andamento') {
-      return _mockWorkouts.where((w) => !w['isCompleted']).toList();
+  Future<void> _initializeScreen() async {
+    try {
+      print('\n[WorkoutListScreen] Inicializando tela...');
+      final userId = await AuthService.getCurrentUserId();
+      
+      if (userId == null) {
+        print('[WorkoutListScreen] Usuário não autenticado');
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, AppRoutes.login);
+        }
+        return;
+      }
+
+      setState(() {
+        _userId = userId;
+      });
+
+      await _loadTemplates();
+    } catch (e) {
+      print('[WorkoutListScreen] Erro na inicialização: $e');
+      setState(() {
+        _error = 'Erro ao inicializar a tela';
+        _isLoading = false;
+      });
     }
-    if (_selectedFilter == 'Concluídos') {
-      return _mockWorkouts.where((w) => w['isCompleted']).toList();
+  }
+
+  Future<void> _loadTemplates() async {
+    if (_userId == null) {
+      print('[WorkoutListScreen] Tentativa de carregar treinos sem usuário');
+      return;
     }
-    // Favoritos
-    return _mockWorkouts.where((w) => w['isFavorite']).toList();
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      print('\n[WorkoutListScreen] Carregando treinos do usuário: $_userId');
+      
+      // Primeiro carrega os treinos do usuário
+      final userTemplates = await DatabaseService.getWorkoutTemplates(
+        userId: _userId!,
+        presetsOnly: false,
+      );
+
+      print('[WorkoutListScreen] Treinos do usuário carregados: ${userTemplates.length}');
+      
+      // Depois carrega os treinos predefinidos
+      final presetTemplates = await DatabaseService.getWorkoutTemplates(
+        presetsOnly: true,
+      );
+
+      print('[WorkoutListScreen] Treinos predefinidos carregados: ${presetTemplates.length}');
+
+      // Combina os dois conjuntos de treinos
+      final allTemplates = [...userTemplates, ...presetTemplates];
+      print('[WorkoutListScreen] Total de treinos carregados: ${allTemplates.length}');
+
+      if (mounted) {
+        setState(() {
+          _templates = allTemplates;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('[WorkoutListScreen] Erro ao carregar treinos: $e');
+      if (mounted) {
+        setState(() {
+          _error = 'Erro ao carregar seus treinos';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  List<WorkoutTemplate> get _filteredWorkouts {
+    if (_templates.isEmpty) return [];
+
+    switch (_selectedFilter) {
+      case 'Em andamento':
+        return _templates.where((template) => 
+          template.lastWorkout != null && !template.lastWorkout!.isCompleted).toList();
+      case 'Concluídos':
+        return _templates.where((template) => 
+          template.lastWorkout != null && template.lastWorkout!.isCompleted).toList();
+      case 'Favoritos':
+        return _templates.where((template) => template.isFavorite).toList();
+      default:
+        return _templates;
+    }
+  }
+
+  Future<void> _toggleFavorite(WorkoutTemplate template) async {
+    try {
+      print('[WorkoutListScreen] Alternando favorito para treino: ${template.id}');
+      final success = await DatabaseService.toggleWorkoutFavorite(template.id);
+      
+      if (success) {
+        await _loadTemplates();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erro ao atualizar favorito'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('[WorkoutListScreen] Erro ao alternar favorito: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Erro ao atualizar favorito'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Meus Treinos'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              // TODO: Implementar busca
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: () {
-              // TODO: Implementar mais filtros
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: _filters.map((filter) {
-                final isSelected = _selectedFilter == filter;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(filter),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() {
-                          _selectedFilter = filter;
-                        });
-                      }
-                    },
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.red,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Erro ao carregar treinos',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.red[700]),
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton.icon(
+                        onPressed: _loadTemplates,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Tentar Novamente'),
+                      ),
+                    ],
                   ),
-                );
-              }).toList(),
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _filteredWorkouts.length,
-              itemBuilder: (context, index) {
-                final workout = _filteredWorkouts[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.pushNamed(context, '/workout/details');
-                    },
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  workout['name'],
-                                  style: Theme.of(context).textTheme.titleMedium,
-                                ),
-                              ),
-                              IconButton(
-                                icon: Icon(
-                                  workout['isFavorite']
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                  color: workout['isFavorite']
-                                      ? Colors.red
-                                      : null,
-                                ),
-                                onPressed: () {
-                                  // TODO: Implementar favoritar
-                                },
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(workout['description']),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.timer_outlined,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 4),
-                              Text('${workout['duration']} min'),
-                              const SizedBox(width: 16),
-                              Icon(
-                                Icons.fitness_center,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 4),
-                              Text('${workout['exercises']} exercícios'),
-                              const SizedBox(width: 16),
-                              Icon(
-                                Icons.speed,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(workout['difficulty']),
-                            ],
-                          ),
-                          if (workout['isCompleted'])
-                            Container(
-                              margin: const EdgeInsets.only(top: 8),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
+                )
+              : Column(
+                  children: [
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Row(
+                        children: _filters.map((filter) {
+                          final isSelected = _selectedFilter == filter;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              label: Text(filter),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                if (selected) {
+                                  setState(() {
+                                    _selectedFilter = filter;
+                                  });
+                                }
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    Expanded(
+                      child: _filteredWorkouts.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
                                   Icon(
-                                    Icons.check_circle,
-                                    size: 16,
-                                    color: Colors.green,
+                                    Icons.fitness_center,
+                                    size: 64,
+                                    color: Colors.grey[400],
                                   ),
-                                  SizedBox(width: 4),
+                                  const SizedBox(height: 16),
                                   Text(
-                                    'Concluído',
+                                    _templates.isEmpty
+                                        ? 'Você ainda não tem nenhum treino'
+                                        : 'Nenhum treino encontrado para o filtro selecionado',
                                     style: TextStyle(
-                                      color: Colors.green,
-                                      fontSize: 12,
+                                      fontSize: 16,
+                                      color: Colors.grey[600],
                                     ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  FilledButton.icon(
+                                    onPressed: () {
+                                      Navigator.pushNamed(context, AppRoutes.workoutNew)
+                                          .then((_) => _loadTemplates());
+                                    },
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Criar Novo Treino'),
                                   ),
                                 ],
                               ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: _loadTemplates,
+                              child: ListView.builder(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: _filteredWorkouts.length,
+                                itemBuilder: (context, index) {
+                                  final template = _filteredWorkouts[index];
+                                  return Card(
+                                    margin: const EdgeInsets.only(bottom: 16),
+                                    child: InkWell(
+                                      onTap: () {
+                                        Navigator.pushNamed(
+                                          context,
+                                          AppRoutes.workoutDetails,
+                                          arguments: template,
+                                        ).then((_) => _loadTemplates());
+                                      },
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    template.name,
+                                                    style: Theme.of(context).textTheme.titleMedium,
+                                                  ),
+                                                ),
+                                                IconButton(
+                                                  icon: Icon(
+                                                    template.isFavorite
+                                                        ? Icons.favorite
+                                                        : Icons.favorite_border,
+                                                    color: template.isFavorite
+                                                        ? Colors.red
+                                                        : null,
+                                                  ),
+                                                  onPressed: () => _toggleFavorite(template),
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.edit),
+                                                  onPressed: () {
+                                                    Navigator.pushNamed(
+                                                      context,
+                                                      AppRoutes.workoutEdit,
+                                                      arguments: template,
+                                                    ).then((_) => _loadTemplates());
+                                                  },
+                                                ),
+                                              ],
+                                            ),
+                                            if (template.description.isNotEmpty) ...[
+                                              const SizedBox(height: 8),
+                                              Text(template.description),
+                                            ],
+                                            const SizedBox(height: 16),
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.fitness_center,
+                                                  size: 16,
+                                                  color: Theme.of(context).colorScheme.primary,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text('${template.exercises.length} exercícios'),
+                                                const SizedBox(width: 16),
+                                                Icon(
+                                                  Icons.speed,
+                                                  size: 16,
+                                                  color: Theme.of(context).colorScheme.primary,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(template.difficulty),
+                                                const SizedBox(width: 16),
+                                                Icon(
+                                                  Icons.category,
+                                                  size: 16,
+                                                  color: Theme.of(context).colorScheme.primary,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(template.category),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
-                        ],
-                      ),
                     ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+                  ],
+                ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.pushNamed(context, '/workout/new');
+          Navigator.pushNamed(context, AppRoutes.workoutNew)
+              .then((_) => _loadTemplates());
         },
         child: const Icon(Icons.add),
       ),

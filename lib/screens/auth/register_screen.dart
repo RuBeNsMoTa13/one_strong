@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/user.dart';
 import '../../services/database_service.dart';
+import '../../routes.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -99,7 +100,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       
       print('[Register] Redirecionando para home...');
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
       }
     } catch (e, stackTrace) {
       print('[Register] Erro ao criar conta:');

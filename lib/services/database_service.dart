@@ -1,11 +1,11 @@
-import 'package:mongo_dart/mongo_dart.dart';
+import 'package:mongo_dart/mongo_dart.dart' as mongo;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../models/workout_template.dart';
 import '../config/mongodb_config.dart';
 
 class DatabaseService {
-  static late Db _db;
+  static late mongo.Db _db;
   static bool _isInitialized = false;
   static const String _userIdKey = 'userId';
   static const String _userEmailKey = 'userEmail';
@@ -17,7 +17,7 @@ class DatabaseService {
       print('\n[Database] Iniciando conexão com MongoDB...');
       print('[Database] String de conexão: ${MongoDBConfig.connectionString}');
       
-      _db = await Db.create(MongoDBConfig.connectionString);
+      _db = await mongo.Db.create(MongoDBConfig.connectionString);
       
       print('[Database] Tentando abrir conexão...');
       await _db.open();
@@ -247,7 +247,7 @@ Por favor, verifique:
       final userCollection = _db.collection(MongoDBConfig.usersCollection);
       print('Buscando usuário com email: $email');
       
-      final userData = await userCollection.findOne(where.eq('email', email));
+      final userData = await userCollection.findOne(mongo.where.eq('email', email));
       if (userData == null) {
         print('Usuário não encontrado');
         return null;
@@ -355,7 +355,7 @@ Por favor, verifique:
     try {
       final userCollection = _db.collection(MongoDBConfig.usersCollection);
       await userCollection.update(
-        where.eq('_id', user.id),
+        mongo.where.eq('_id', user.id),
         user.toMap(),
       );
       return true;
@@ -368,32 +368,101 @@ Por favor, verifique:
   // Fichas de Treino
   static Future<List<WorkoutTemplate>> getWorkoutTemplates({
     bool presetsOnly = false,
-    ObjectId? userId,
+    mongo.ObjectId? userId,
   }) async {
     try {
+      print('\n[Database] Buscando templates de treino...');
+      print('  presetsOnly: $presetsOnly');
+      print('  userId: $userId');
+
+      if (!_isInitialized || !_db.isConnected) {
+        print('[Database] Banco não inicializado/conectado. Tentando reconectar...');
+        await initialize();
+      }
+
       final templateCollection = _db.collection(MongoDBConfig.workoutTemplatesCollection);
-      final query = presetsOnly
-          ? where.eq('isPreset', true)
-          : where.or([
-              where.eq('isPreset', true),
-              if (userId != null) where.eq('createdBy', userId),
-            ] as SelectorBuilder);
+      
+      // Constrói a query baseada nos parâmetros
+      mongo.SelectorBuilder query;
+      if (presetsOnly) {
+        query = mongo.where.eq('isPreset', true);
+      } else if (userId != null) {
+        query = mongo.where.eq('createdBy', userId);
+      } else {
+        query = mongo.where.eq('isPreset', true);
+      }
+
+      print('[Database] Executando query:');
+      print('  ${query.toString()}');
 
       final templates = await templateCollection.find(query).toList();
-      return templates.map((t) => WorkoutTemplate.fromMap(t)).toList();
-    } catch (e) {
-      print('Erro ao buscar templates: $e');
+      print('[Database] Templates encontrados: ${templates.length}');
+      
+      // Log detalhado dos templates encontrados
+      for (var t in templates) {
+        print('\n[Database] Template encontrado:');
+        print('  _id: ${t['_id']}');
+        print('  name: ${t['name']}');
+        print('  createdBy: ${t['createdBy']}');
+        print('  isPreset: ${t['isPreset']}');
+      }
+
+      final result = templates.map((t) {
+        try {
+          print('\n[Database] Convertendo template:');
+          print('  _id: ${t['_id']}');
+          print('  name: ${t['name']}');
+          print('  exercises: ${t['exercises']?.length ?? 0} exercícios');
+          return WorkoutTemplate.fromMap(t);
+        } catch (e, stackTrace) {
+          print('[Database] ERRO ao converter template:');
+          print('Erro: $e');
+          print('Stack trace: $stackTrace');
+          print('Template com erro: $t');
+          rethrow;
+        }
+      }).toList();
+
+      print('[Database] Templates convertidos com sucesso: ${result.length}');
+      return result;
+    } catch (e, stackTrace) {
+      print('[Database] Erro ao buscar templates:');
+      print('Erro: $e');
+      print('Stack trace: $stackTrace');
       return [];
     }
   }
 
   static Future<bool> saveWorkoutTemplate(WorkoutTemplate template) async {
     try {
+      print('\n[Database] Salvando template de treino...');
+      print('  name: ${template.name}');
+      print('  createdBy: ${template.createdBy}');
+      
+      if (!_isInitialized || !_db.isConnected) {
+        print('[Database] Banco não inicializado/conectado. Tentando reconectar...');
+        await initialize();
+      }
+
       final templateCollection = _db.collection(MongoDBConfig.workoutTemplatesCollection);
-      await templateCollection.insert(template.toMap());
-      return true;
-    } catch (e) {
-      print('Erro ao salvar template: $e');
+      final templateMap = template.toMap();
+      
+      print('[Database] Dados do template para inserção:');
+      templateMap.forEach((key, value) {
+        print('  $key: $value');
+      });
+
+      final result = await templateCollection.insertOne(templateMap);
+      
+      print('[Database] Resultado da inserção:');
+      print('  isSuccess: ${result.isSuccess}');
+      print('  id: ${result.id}');
+      
+      return result.isSuccess;
+    } catch (e, stackTrace) {
+      print('[Database] Erro ao salvar template:');
+      print('Erro: $e');
+      print('Stack trace: $stackTrace');
       return false;
     }
   }
@@ -402,7 +471,7 @@ Por favor, verifique:
     try {
       final templateCollection = _db.collection(MongoDBConfig.workoutTemplatesCollection);
       await templateCollection.update(
-        where.eq('_id', template.id),
+        mongo.where.eq('_id', template.id),
         template.toMap(),
       );
       return true;
@@ -414,19 +483,19 @@ Por favor, verifique:
 
   // Progresso dos Exercícios
   static Future<bool> updateExerciseProgress(
-    ObjectId userId,
-    ObjectId workoutId,
-    ObjectId exerciseId,
+    mongo.ObjectId userId,
+    mongo.ObjectId workoutId,
+    mongo.ObjectId exerciseId,
     ExerciseProgress progress,
   ) async {
     try {
       final progressCollection = _db.collection(MongoDBConfig.exerciseProgressCollection);
       await progressCollection.update(
-        where.and([
-          where.eq('userId', userId),
-          where.eq('workoutId', workoutId),
-          where.eq('exerciseId', exerciseId),
-        ] as SelectorBuilder),
+        mongo.where.and([
+          mongo.where.eq('userId', userId),
+          mongo.where.eq('workoutId', workoutId),
+          mongo.where.eq('exerciseId', exerciseId),
+        ] as mongo.SelectorBuilder),
         {
           r'$push': {
             'progressHistory': progress.toMap(),
@@ -443,13 +512,13 @@ Por favor, verifique:
 
   // Histórico de Peso
   static Future<bool> addWeightHistory(
-    ObjectId userId,
+    mongo.ObjectId userId,
     WeightHistory weightHistory,
   ) async {
     try {
       final userCollection = _db.collection(MongoDBConfig.usersCollection);
       await userCollection.update(
-        where.eq('_id', userId),
+        mongo.where.eq('_id', userId),
         {
           r'$push': {
             'weightHistory': weightHistory.toMap(),
@@ -475,7 +544,7 @@ Por favor, verifique:
       print('[updateUserWeight] Atualizando peso do usuário: $email');
       
       // Busca o usuário atual
-      final userData = await userCollection.findOne(where.eq('email', email));
+      final userData = await userCollection.findOne(mongo.where.eq('email', email));
       if (userData == null) {
         print('[updateUserWeight] Usuário não encontrado');
         return false;
@@ -498,7 +567,7 @@ Por favor, verifique:
 
       // Atualiza no banco de dados
       await userCollection.update(
-        where.eq('email', email),
+        mongo.where.eq('email', email),
         {
           r'$set': {
             'weight': newWeight,
@@ -511,6 +580,44 @@ Por favor, verifique:
       return true;
     } catch (e) {
       print('[updateUserWeight] Erro ao atualizar peso: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> toggleWorkoutFavorite(mongo.ObjectId workoutId) async {
+    try {
+      print('[Database] Alternando favorito para treino: $workoutId');
+      
+      if (!_isInitialized) {
+        print('[Database] Banco não inicializado. Tentando inicializar...');
+        await initialize();
+      }
+
+      final workoutCollection = _db.collection(MongoDBConfig.workoutTemplatesCollection);
+      
+      // Primeiro, busca o treino para saber o estado atual do isFavorite
+      final workout = await workoutCollection.findOne(
+        mongo.where.id(workoutId),
+      );
+
+      if (workout == null) {
+        print('[Database] Treino não encontrado: $workoutId');
+        return false;
+      }
+
+      // Inverte o valor atual de isFavorite
+      final newIsFavorite = !(workout['isFavorite'] as bool? ?? false);
+
+      // Atualiza o documento
+      final result = await workoutCollection.updateOne(
+        mongo.where.id(workoutId),
+        mongo.modify.set('isFavorite', newIsFavorite),
+      );
+
+      print('[Database] Treino atualizado: ${result.isSuccess}');
+      return result.isSuccess;
+    } catch (e) {
+      print('[Database] Erro ao alternar favorito: $e');
       return false;
     }
   }

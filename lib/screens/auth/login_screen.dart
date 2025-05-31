@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/database_service.dart';
+import '../../services/auth_service.dart';
+import '../../routes.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,27 +22,31 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final user = await DatabaseService.getUserByEmail(_emailController.text);
+      print('\n[LoginScreen] Iniciando processo de login...');
+      print('[LoginScreen] Email: ${_emailController.text}');
+      
+      final success = await AuthService.login(
+        _emailController.text,
+        _passwordController.text,
+      );
 
-      if (user == null) {
-        _showError('Usuário não encontrado');
+      if (!success) {
+        print('[LoginScreen] Login falhou');
+        _showError('E-mail ou senha incorretos');
         return;
       }
 
-      // TODO: Implementar verificação de senha com hash
-      if (user.password != _passwordController.text) {
-        _showError('Senha incorreta');
-        return;
-      }
-
-      // Salvar sessão do usuário
-      await DatabaseService.saveUserSession(user);
+      print('[LoginScreen] Login bem sucedido');
+      print('[LoginScreen] Redirecionando para home...');
 
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
       }
-    } catch (e) {
-      _showError('Erro ao fazer login');
+    } catch (e, stackTrace) {
+      print('[LoginScreen] Erro ao fazer login:');
+      print('Erro: $e');
+      print('Stack trace: $stackTrace');
+      _showError('Erro ao fazer login. Por favor, tente novamente.');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -55,6 +61,14 @@ class _LoginScreenState extends State<LoginScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'OK',
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
       ),
     );
   }
@@ -145,7 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: () {
-                      Navigator.pushNamed(context, '/register');
+                      Navigator.pushNamed(context, AppRoutes.register);
                     },
                     child: const Text('Não tem uma conta? Cadastre-se'),
                   ),

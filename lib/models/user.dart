@@ -1,7 +1,7 @@
-import 'package:mongo_dart/mongo_dart.dart';
+import 'package:mongo_dart/mongo_dart.dart' as mongo;
 
 class User {
-  final ObjectId id;
+  final mongo.ObjectId id;
   final String name;
   final String email;
   final String password;
@@ -16,7 +16,7 @@ class User {
   int daysStreak;
 
   User({
-    ObjectId? id,
+    mongo.ObjectId? id,
     required this.name,
     required this.email,
     required this.password,
@@ -29,7 +29,7 @@ class User {
     List<WeightHistory>? weightHistory,
     this.workoutsCompleted = 0,
     this.daysStreak = 0,
-  })  : id = id ?? ObjectId(),
+  })  : id = id ?? mongo.ObjectId(),
         joinedDate = joinedDate ?? DateTime.now(),
         weightHistory = weightHistory ?? [];
 
@@ -62,7 +62,7 @@ class User {
     try {
       print('[User] Convertendo Map para User...');
       return User(
-        id: map['_id'] as ObjectId,
+        id: map['_id'] as mongo.ObjectId,
         name: (map['name'] as String).trim(),
         email: (map['email'] as String).trim().toLowerCase(),
         password: map['password'] as String,

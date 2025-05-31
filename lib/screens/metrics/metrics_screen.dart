@@ -165,9 +165,6 @@ class _MetricsScreenState extends State<MetricsScreen> {
         : 0.0;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Métricas'),
-      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/workout_template.dart';
 import '../../services/database_service.dart';
+import '../../services/auth_service.dart';
+import '../../routes.dart';
 
 class WorkoutTemplatesScreen extends StatefulWidget {
   const WorkoutTemplatesScreen({super.key});
@@ -15,6 +17,7 @@ class _WorkoutTemplatesScreenState extends State<WorkoutTemplatesScreen>
   List<WorkoutTemplate> _presetTemplates = [];
   List<WorkoutTemplate> _userTemplates = [];
   bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -24,26 +27,37 @@ class _WorkoutTemplatesScreenState extends State<WorkoutTemplatesScreen>
   }
 
   Future<void> _loadTemplates() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
     try {
-      // TODO: Pegar o userId do usuário logado
+      final userId = await AuthService.getCurrentUserId();
+      if (userId == null) {
+        throw Exception('Usuário não autenticado');
+      }
+
       final presets = await DatabaseService.getWorkoutTemplates(presetsOnly: true);
       final userTemplates = await DatabaseService.getWorkoutTemplates(
         presetsOnly: false,
-        // userId: currentUser.id,
+        userId: userId,
       );
 
-      setState(() {
-        _presetTemplates = presets;
-        _userTemplates = userTemplates
-            .where((template) => !template.isPreset)
-            .toList();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _presetTemplates = presets;
+          _userTemplates = userTemplates.where((t) => !t.isPreset).toList();
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      // TODO: Mostrar erro ao usuário
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -68,19 +82,53 @@ class _WorkoutTemplatesScreenState extends State<WorkoutTemplatesScreen>
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildTemplateList(_presetTemplates, isPredefined: true),
-                _buildTemplateList(_userTemplates),
-              ],
-            ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.pushNamed(context, '/workout/new');
-        },
-        child: const Icon(Icons.add),
-      ),
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.red,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Erro ao carregar fichas',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.red[700]),
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton.icon(
+                        onPressed: _loadTemplates,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Tentar Novamente'),
+                      ),
+                    ],
+                  ),
+                )
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildTemplateList(_presetTemplates, isPredefined: true),
+                    _buildTemplateList(_userTemplates),
+                  ],
+                ),
+      floatingActionButton: _tabController.index == 1
+          ? FloatingActionButton(
+              onPressed: () {
+                Navigator.pushNamed(context, AppRoutes.workoutNew).then((_) {
+                  _loadTemplates();
+                });
+              },
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 
@@ -110,7 +158,9 @@ class _WorkoutTemplatesScreenState extends State<WorkoutTemplatesScreen>
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: () {
-                  Navigator.pushNamed(context, '/workout/new');
+                  Navigator.pushNamed(context, AppRoutes.workoutNew).then((_) {
+                    _loadTemplates();
+                  });
                 },
                 icon: const Icon(Icons.add),
                 label: const Text('Criar Nova Ficha'),
@@ -130,7 +180,15 @@ class _WorkoutTemplatesScreenState extends State<WorkoutTemplatesScreen>
           margin: const EdgeInsets.only(bottom: 16),
           child: InkWell(
             onTap: () {
-              // TODO: Implementar visualização/edição do template
+              Navigator.pushNamed(
+                context,
+                AppRoutes.workoutDetails,
+                arguments: template,
+              ).then((_) {
+                if (!isPredefined) {
+                  _loadTemplates();
+                }
+              });
             },
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -158,31 +216,16 @@ class _WorkoutTemplatesScreenState extends State<WorkoutTemplatesScreen>
                         ),
                       ),
                       if (!isPredefined)
-                        PopupMenuButton(
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'edit',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.edit),
-                                  SizedBox(width: 8),
-                                  Text('Editar'),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.delete),
-                                  SizedBox(width: 8),
-                                  Text('Excluir'),
-                                ],
-                              ),
-                            ),
-                          ],
-                          onSelected: (value) {
-                            // TODO: Implementar ações de editar/excluir
+                        IconButton(
+                          icon: const Icon(Icons.edit),
+                          onPressed: () {
+                            Navigator.pushNamed(
+                              context,
+                              AppRoutes.workoutEdit,
+                              arguments: template,
+                            ).then((_) {
+                              _loadTemplates();
+                            });
                           },
                         ),
                     ],

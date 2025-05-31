@@ -37,18 +37,70 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   ];
 
+  String get _screenTitle {
+    switch (_selectedIndex) {
+      case 0:
+        return 'Meus Treinos';
+      case 1:
+        return 'Métricas';
+      case 2:
+        return 'Perfil';
+      default:
+        return '';
+    }
+  }
+
+  List<Widget>? get _actions {
+    switch (_selectedIndex) {
+      case 0:
+        return [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              // TODO: Implementar busca
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: () {
+              // TODO: Implementar mais filtros
+            },
+          ),
+        ];
+      case 2:
+        return [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              // TODO: Implementar tela de configurações
+            },
+          ),
+        ];
+      default:
+        return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _screens[_selectedIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        destinations: _destinations,
+    return WillPopScope(
+      onWillPop: () async => false,
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: Text(_screenTitle),
+          actions: _actions,
+        ),
+        body: _screens[_selectedIndex],
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+          destinations: _destinations,
+        ),
       ),
     );
   }

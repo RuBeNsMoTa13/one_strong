@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../../services/database_service.dart';
 import '../../models/workout_template.dart';
+import '../../models/user.dart';
 import '../../routes.dart';
 import 'package:audioplayers/audioplayers.dart';
+import '../../services/auth_service.dart';
 
 class WorkoutDetailsScreen extends StatefulWidget {
   final WorkoutTemplate workout;
@@ -30,6 +32,8 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
   final _weightController = TextEditingController();
   final _restTimeController = TextEditingController();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final List<WorkoutExerciseProgress> _exerciseProgress = [];
+  DateTime? _workoutStartTime;
 
   @override
   void initState() {
@@ -121,16 +125,68 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
     }
   }
 
+  void _startWorkout() {
+    setState(() {
+      _isWorkoutStarted = true;
+      _currentExerciseIndex = 0;
+      _currentSet = 1;
+      _workoutStartTime = DateTime.now();
+      _loadInitialData();
+      _startWorkoutTimer();
+      _startExerciseTimer();
+      _exerciseProgress.clear();
+    });
+  }
+
   void _nextSet() {
     final exercise = widget.workout.exercises[_currentExerciseIndex];
+    
+    // Registra o progresso da série atual
+    _recordSetProgress();
+    
     if (_currentSet < exercise.sets) {
       setState(() {
         _currentSet++;
         _startRestTimer();
       });
     } else {
+      // Marca o exercício como completo
+      exercise.isCompleted = true;
       _nextExercise();
     }
+  }
+
+  void _recordSetProgress() {
+    final exercise = widget.workout.exercises[_currentExerciseIndex];
+    final weight = double.tryParse(_weightController.text) ?? 0.0;
+    
+    // Procura o progresso do exercício atual ou cria um novo
+    WorkoutExerciseProgress? progress = _exerciseProgress.firstWhere(
+      (p) => p.exerciseId == exercise.exerciseId,
+      orElse: () {
+        final newProgress = WorkoutExerciseProgress(
+          exerciseId: exercise.exerciseId,
+          timestamp: DateTime.now(),
+        );
+        _exerciseProgress.add(newProgress);
+        return newProgress;
+      },
+    );
+
+    // Adiciona o progresso da série atual
+    progress.sets.add(SetProgress(
+      reps: int.tryParse(exercise.reps) ?? 0,
+      weight: weight,
+      isCompleted: true,
+    ));
+
+    // Atualiza o histórico de progresso do exercício
+    exercise.progressHistory.add(ExerciseProgress(
+      date: DateTime.now(),
+      weight: weight,
+      completedSets: _currentSet,
+      completedReps: int.tryParse(exercise.reps) ?? 0,
+    ));
   }
 
   void _nextExercise() {
@@ -146,7 +202,8 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
     }
   }
 
-  void _finishWorkout() {
+  void _finishWorkout() async {
+    final endTime = DateTime.now();
     setState(() {
       _isWorkoutStarted = false;
       _restTimer?.cancel();
@@ -166,37 +223,142 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
       createdBy: widget.workout.createdBy,
       isFavorite: widget.workout.isFavorite,
       lastWorkout: WorkoutSession(
-        startTime: DateTime.now().subtract(Duration(seconds: _totalWorkoutTime)),
-        endTime: DateTime.now(),
+        startTime: _workoutStartTime ?? endTime.subtract(Duration(seconds: _totalWorkoutTime)),
+        endTime: endTime,
         isCompleted: true,
-        exerciseProgress: [], // TODO: Implementar progresso dos exercícios
+        exerciseProgress: _exerciseProgress,
       ),
     );
     
-    DatabaseService.updateWorkoutTemplate(updatedWorkout);
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(
-              Icons.celebration,
-              color: Colors.white,
+    // Atualiza o template do treino
+    await DatabaseService.updateWorkoutTemplate(updatedWorkout);
+
+    // Atualiza as métricas do usuário
+    final user = await AuthService.getCurrentUser();
+    if (user != null) {
+      final today = DateTime(endTime.year, endTime.month, endTime.day);
+      
+      // Verifica se já houve treino hoje
+      final hasWorkoutToday = user.workoutHistory.any((w) {
+        final workoutDate = DateTime(w.date.year, w.date.month, w.date.day);
+        return workoutDate.isAtSameMomentAs(today);
+      });
+
+      // Cria o registro do treino
+      final workoutRecord = WorkoutHistory(
+        date: endTime,
+        workoutName: widget.workout.name,
+        durationSeconds: _totalWorkoutTime,  // Salvando em segundos
+        exercises: widget.workout.exercises.map((e) {
+          final progress = _exerciseProgress.firstWhere(
+            (p) => p.exerciseId == e.exerciseId,
+            orElse: () => WorkoutExerciseProgress(
+              exerciseId: e.exerciseId,
+              timestamp: endTime,
             ),
-            const SizedBox(width: 12),
-            Text(
-              'Parabéns! Treino finalizado em ${_formatDuration(_totalWorkoutTime)}!',
+          );
+          
+          return ExerciseRecord(
+            name: e.name,
+            sets: progress.sets.length,
+            reps: int.tryParse(e.reps) ?? 0,
+            weight: e.weight ?? 0.0,
+          );
+        }).toList(),
+      );
+
+      if (!hasWorkoutToday) {
+        // Atualiza as estatísticas do usuário
+        user.workoutsCompleted++;
+        user.totalWorkoutMinutes += (_totalWorkoutTime / 60).ceil();  // Convertendo segundos para minutos
+        user.workoutHistory.add(workoutRecord);
+
+        // Atualiza a sequência de dias
+        if (user.lastWorkoutDate != null) {
+          final lastWorkoutDay = DateTime(
+            user.lastWorkoutDate!.year,
+            user.lastWorkoutDate!.month,
+            user.lastWorkoutDate!.day,
+          );
+          
+          final difference = today.difference(lastWorkoutDay).inDays;
+          
+          if (difference == 1) {
+            // Treinou em dias consecutivos
+            user.daysStreak++;
+          } else if (difference > 1) {
+            // Quebrou a sequência
+            user.daysStreak = 1;
+          }
+        } else {
+          // Primeiro treino
+          user.daysStreak = 1;
+        }
+
+        user.lastWorkoutDate = endTime;
+        
+        // Salva as atualizações do usuário
+        await DatabaseService.updateUser(user);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(
+                    Icons.celebration,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Parabéns! Treino finalizado em ${_formatDuration(_totalWorkoutTime)}!',
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              margin: const EdgeInsets.all(8),
             ),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        margin: const EdgeInsets.all(8),
-      ),
-    );
+          );
+        }
+      } else {
+        // Atualiza apenas o histórico e o tempo total
+        user.workoutHistory.add(workoutRecord);
+        user.totalWorkoutMinutes += (_totalWorkoutTime / 60).ceil();  // Convertendo segundos para minutos
+        await DatabaseService.updateUser(user);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Você já completou um treino hoje! A sequência será atualizada apenas no próximo dia.',
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              margin: const EdgeInsets.all(8),
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+    }
   }
 
   String _formatDuration(int seconds) {
@@ -211,17 +373,6 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
     } else {
       return '${remainingSeconds}s';
     }
-  }
-
-  void _startWorkout() {
-    setState(() {
-      _isWorkoutStarted = true;
-      _currentExerciseIndex = 0;
-      _currentSet = 1;
-      _loadInitialData();
-      _startWorkoutTimer();
-      _startExerciseTimer();
-    });
   }
 
   Future<void> _updateExerciseDetails(int index) async {

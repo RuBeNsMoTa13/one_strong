@@ -181,6 +181,127 @@ class _MetricsScreenState extends State<MetricsScreen> {
     return DateFormat('dd/MM/yyyy HH:mm').format(localDate);
   }
 
+  List<BarChartGroupData> _generateWorkoutBarData() {
+    if (_user?.workoutHistory == null || _user!.workoutHistory.isEmpty) return [];
+
+    // Agrupa treinos por dia
+    final Map<String, int> workoutsByDay = {};
+    for (var workout in _user!.workoutHistory) {
+      final date = DateFormat('dd/MM').format(workout.date);
+      workoutsByDay[date] = (workoutsByDay[date] ?? 0) + 1;
+    }
+
+    // Pega os últimos 7 dias
+    final List<BarChartGroupData> barData = [];
+    final now = DateTime.now();
+    for (int i = 6; i >= 0; i--) {
+      final date = now.subtract(Duration(days: i));
+      final dateStr = DateFormat('dd/MM').format(date);
+      final count = workoutsByDay[dateStr] ?? 0;
+      
+      barData.add(
+        BarChartGroupData(
+          x: 6 - i,
+          barRods: [
+            BarChartRodData(
+              toY: count.toDouble(),
+              color: Theme.of(context).colorScheme.primary,
+              width: 16,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return barData;
+  }
+
+  List<BarChartGroupData> _generateStreakBarData() {
+    if (_user?.workoutHistory == null || _user!.workoutHistory.isEmpty) return [];
+
+    // Calcula a sequência para os últimos 30 dias
+    final List<int> dailyStreak = [];
+    final now = DateTime.now();
+    var currentStreak = 0;
+
+    for (int i = 29; i >= 0; i--) {
+      final date = now.subtract(Duration(days: i));
+      final hasWorkout = _user!.workoutHistory.any((workout) {
+        final workoutDate = DateTime(
+          workout.date.year,
+          workout.date.month,
+          workout.date.day,
+        );
+        final targetDate = DateTime(
+          date.year,
+          date.month,
+          date.day,
+        );
+        return workoutDate.isAtSameMomentAs(targetDate);
+      });
+
+      if (hasWorkout) {
+        currentStreak++;
+      } else {
+        currentStreak = 0;
+      }
+      dailyStreak.add(currentStreak);
+    }
+
+    // Cria os dados do gráfico para os últimos 7 dias
+    final List<BarChartGroupData> barData = [];
+    for (int i = 0; i < 7; i++) {
+      final streakValue = dailyStreak[dailyStreak.length - 7 + i];
+      barData.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: streakValue.toDouble(),
+              color: Theme.of(context).colorScheme.secondary,
+              width: 16,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return barData;
+  }
+
+  List<BarChartGroupData> _generateWorkoutTimeBarData() {
+    if (_user?.workoutHistory == null || _user!.workoutHistory.isEmpty) return [];
+
+    // Pega os últimos 7 treinos
+    final recentWorkouts = _user!.workoutHistory
+        .map((w) => w.durationSeconds) // Converte para segundos
+        .take(7)
+        .toList()
+        .reversed
+        .toList();
+
+    final List<BarChartGroupData> barData = [];
+    for (int i = 0; i < recentWorkouts.length; i++) {
+      barData.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: recentWorkouts[i].toDouble(),
+              color: Theme.of(context).colorScheme.tertiary,
+              width: 16,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return barData;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -248,49 +369,13 @@ class _MetricsScreenState extends State<MetricsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Resumo dos Treinos',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildStatItem(
-                            context,
-                            'Treinos Concluídos',
-                            '${_user!.workoutsCompleted}',
-                            Icons.fitness_center,
-                          ),
-                          const Divider(),
-                          _buildStatItem(
-                            context,
-                            'Dias Consecutivos',
-                            '${_user!.daysStreak}',
-                            Icons.local_fire_department,
-                            color: _user!.daysStreak > 0 ? Colors.orange : null,
-                          ),
-                          const Divider(),
-                          _buildStatItem(
-                            context,
-                            'Tempo Total',
-                            '${_calculateTotalWorkoutTime()} min',
-                            Icons.timer,
-                          ),
-                          const Divider(),
-                          _buildStatItem(
-                            context,
-                            'Média por Treino',
-                            '${_calculateAverageWorkoutTime()} min',
-                            Icons.av_timer,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  _buildWorkoutStatsCard(),
+                  const SizedBox(height: 16),
+                  _buildWorkoutFrequencyCard(),
+                  const SizedBox(height: 16),
+                  _buildWorkoutTimeCard(),
+                  const SizedBox(height: 16),
+                  _buildWorkoutStreakCard(),
                   const SizedBox(height: 16),
                   _buildWorkoutHistoryCard(),
                 ],
@@ -543,6 +628,243 @@ class _MetricsScreenState extends State<MetricsScreen> {
     );
   }
 
+  Widget _buildWorkoutStatsCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Resumo dos Treinos',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            _buildStatItem(
+              context,
+              'Treinos Concluídos',
+              '${_user!.workoutsCompleted}',
+              Icons.fitness_center,
+            ),
+            const Divider(),
+            _buildStatItem(
+              context,
+              'Dias Consecutivos',
+              '${_user!.daysStreak}',
+              Icons.local_fire_department,
+              color: _user!.daysStreak > 0 ? Colors.orange : null,
+            ),
+            const Divider(),
+            _buildStatItem(
+              context,
+              'Tempo Total',
+              '${_calculateTotalWorkoutTime()}',
+              Icons.timer,
+            ),
+            const Divider(),
+            _buildStatItem(
+              context,
+              'Média por Treino',
+              '${_calculateAverageWorkoutTime()}',
+              Icons.av_timer,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkoutFrequencyCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Treinos por Dia (Últimos 7 dias)',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 200,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: 5,
+                  barGroups: _generateWorkoutBarData(),
+                  gridData: FlGridData(show: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 30,
+                        getTitlesWidget: (value, meta) {
+                          return Text(value.toInt().toString());
+                        },
+                      ),
+                    ),
+                    rightTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          final now = DateTime.now();
+                          final date = now.subtract(Duration(days: 6 - value.toInt()));
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              DateFormat('dd/MM').format(date),
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkoutTimeCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tempo de Treino (Últimos 7 treinos)',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 200,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: _calculateMaxWorkoutTime(),
+                  barGroups: _generateWorkoutTimeBarData(),
+                  gridData: FlGridData(show: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 50,
+                        getTitlesWidget: (value, meta) {
+                          return Text(_formatDuration(value.toInt()));
+                        },
+                      ),
+                    ),
+                    rightTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          if (_user?.workoutHistory == null || value.toInt() >= _user!.workoutHistory.length) {
+                            return const Text('');
+                          }
+                          final workout = _user!.workoutHistory[value.toInt()];
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              DateFormat('dd/MM').format(workout.date),
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkoutStreakCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Sequência de Dias (Últimos 7 dias)',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 200,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: 10,
+                  barGroups: _generateStreakBarData(),
+                  gridData: FlGridData(show: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 30,
+                        getTitlesWidget: (value, meta) {
+                          return Text(value.toInt().toString());
+                        },
+                      ),
+                    ),
+                    rightTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          final now = DateTime.now();
+                          final date = now.subtract(Duration(days: 6 - value.toInt()));
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              DateFormat('dd/MM').format(date),
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildWorkoutHistoryCard() {
     if (_workouts == null || _workouts!.isEmpty) {
       return Card(
@@ -610,8 +932,7 @@ class _MetricsScreenState extends State<MetricsScreen> {
               separatorBuilder: (context, index) => const Divider(),
               itemBuilder: (context, index) {
                 final workout = completedWorkouts[index];
-                final duration = workout.lastWorkout!.endTime!
-                    .difference(workout.lastWorkout!.startTime);
+                final durationInSeconds = workout.lastWorkout!.getDurationInSeconds();
                 
                 return ListTile(
                   leading: const Icon(Icons.fitness_center),
@@ -622,7 +943,7 @@ class _MetricsScreenState extends State<MetricsScreen> {
                     ),
                   ),
                   trailing: Text(
-                    '${duration.inMinutes} min',
+                    _formatDuration(durationInSeconds),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.bold,
@@ -894,37 +1215,49 @@ class _MetricsScreenState extends State<MetricsScreen> {
     );
   }
 
-  String _calculateTotalWorkoutTime() {
-    if (_workouts == null || _workouts!.isEmpty) return '0';
-
-    int totalMinutes = 0;
-    for (final workout in _workouts!) {
-      if (workout.lastWorkout != null && workout.lastWorkout!.endTime != null) {
-        final duration = workout.lastWorkout!.endTime!
-            .difference(workout.lastWorkout!.startTime);
-        totalMinutes += duration.inMinutes;
-      }
+  String _formatDuration(int totalSeconds) {
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+    
+    if (hours > 0) {
+      return '${hours}h ${minutes}m ${seconds}s';
+    } else if (minutes > 0) {
+      return '${minutes}m ${seconds}s';
+    } else {
+      return '${seconds}s';
     }
-    return totalMinutes.toString();
+  }
+
+  String _calculateTotalWorkoutTime() {
+    if (_user?.workoutHistory == null || _user!.workoutHistory.isEmpty) return '0s';
+
+    final totalSeconds = _user!.workoutHistory
+        .map((w) => w.durationSeconds) // Já está em segundos
+        .fold(0, (sum, duration) => sum + duration);
+
+    return _formatDuration(totalSeconds);
   }
 
   String _calculateAverageWorkoutTime() {
-    if (_workouts == null || _workouts!.isEmpty) return '0';
+    if (_user?.workoutHistory == null || _user!.workoutHistory.isEmpty) return '0s';
 
-    int totalMinutes = 0;
-    int completedWorkouts = 0;
+    final totalSeconds = _user!.workoutHistory
+        .map((w) => w.durationSeconds) // Já está em segundos
+        .fold(0, (sum, duration) => sum + duration);
 
-    for (final workout in _workouts!) {
-      if (workout.lastWorkout != null && workout.lastWorkout!.endTime != null) {
-        final duration = workout.lastWorkout!.endTime!
-            .difference(workout.lastWorkout!.startTime);
-        totalMinutes += duration.inMinutes;
-        completedWorkouts++;
-      }
-    }
+    return _formatDuration(totalSeconds ~/ _user!.workoutHistory.length);
+  }
 
-    if (completedWorkouts == 0) return '0';
-    return (totalMinutes ~/ completedWorkouts).toString();
+  double _calculateMaxWorkoutTime() {
+    if (_user?.workoutHistory == null || _user!.workoutHistory.isEmpty) return 3600; // 1 hora como padrão
+    
+    final maxTime = _user!.workoutHistory
+        .map((w) => w.durationSeconds) // Já está em segundos
+        .reduce((a, b) => a > b ? a : b)
+        .toDouble();
+    
+    return maxTime + (maxTime * 0.1); // Adiciona 10% de margem
   }
 
   Widget _buildStatItem(

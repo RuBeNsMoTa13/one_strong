@@ -235,27 +235,24 @@ class WorkoutSession {
       'startTime': startTime,
       'endTime': endTime,
       'isCompleted': isCompleted,
-      'exerciseProgress': exerciseProgress.map((p) => p.toMap()).toList(),
+      'exerciseProgress': exerciseProgress.map((e) => e.toMap()).toList(),
     };
   }
 
   factory WorkoutSession.fromMap(Map<String, dynamic> map) {
-    try {
-      return WorkoutSession(
-        startTime: map['startTime'] as DateTime,
-        endTime: map['endTime'] as DateTime?,
-        isCompleted: map['isCompleted'] as bool? ?? false,
-        exerciseProgress: (map['exerciseProgress'] as List?)
-            ?.map((p) => WorkoutExerciseProgress.fromMap(p as Map<String, dynamic>))
-            .toList(),
-      );
-    } catch (e, stackTrace) {
-      print('[WorkoutSession] ERRO ao converter mapa:');
-      print('Erro: $e');
-      print('Stack trace: $stackTrace');
-      print('Mapa recebido: $map');
-      rethrow;
-    }
+    return WorkoutSession(
+      startTime: map['startTime'] as DateTime,
+      endTime: map['endTime'] as DateTime?,
+      isCompleted: map['isCompleted'] as bool,
+      exerciseProgress: (map['exerciseProgress'] as List?)
+          ?.map((e) => WorkoutExerciseProgress.fromMap(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
+  int getDurationInSeconds() {
+    if (endTime == null) return 0;
+    return endTime!.difference(startTime).inSeconds;
   }
 }
 

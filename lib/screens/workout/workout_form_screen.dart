@@ -381,7 +381,28 @@ class _ExerciseFormSheetState extends State<_ExerciseFormSheet> {
   static const List<String> _availableImages = [
     'assets/images/exercises/agachamento.gif',
     'assets/images/exercises/rosca_direta.gif',
+    'assets/images/exercises/leg_press.gif',
+    'assets/images/exercises/supino-reto.gif',
+    'assets/images/exercises/flexao-de-pernas-na-maquina.gif',
+    'assets/images/exercises/pernas-extensao-de-pernas-na-maquina.gif',
+    'assets/images/exercises/Panturrilha-em-pe-no-aparelho.gif',
+    'assets/images/exercises/costas-puxada-aberta-com-barra-no-pulley-1.gif',
+    'assets/images/exercises/remada-baixa-triangulo.gif',
+    'assets/images/exercises/bentoverrows.gif',
+    'assets/images/exercises/elevação-lateral-hateres.gif',
+    'assets/images/exercises/elevação-frontal.gif',
+    'assets/images/exercises/triceps-puxada-no-pulley.gif',
   ];
+
+  String _formatExerciseName(String imagePath) {
+    final fileName = imagePath.split('/').last.split('.').first;
+    return fileName
+      .replaceAll('-', ' ')
+      .replaceAll('_', ' ')
+      .split(' ')
+      .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
+      .join(' ');
+  }
 
   void _selectImage() {
     showDialog(
@@ -400,13 +421,13 @@ class _ExerciseFormSheetState extends State<_ExerciseFormSheet> {
                     crossAxisCount: 2,
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 8,
-                    childAspectRatio: 1,
+                    childAspectRatio: 0.8,
                   ),
                   itemCount: _availableImages.length,
                   itemBuilder: (context, index) {
                     final imagePath = _availableImages[index];
                     final isSelected = _selectedImageUrl == imagePath;
-                    final exerciseName = imagePath.split('/').last.split('.').first;
+                    final exerciseName = _formatExerciseName(imagePath);
                     
                     return InkWell(
                       onTap: () {
@@ -429,7 +450,10 @@ class _ExerciseFormSheetState extends State<_ExerciseFormSheet> {
                           children: [
                             Expanded(
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(7),
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(7),
+                                  topRight: Radius.circular(7),
+                                ),
                                 child: Image.asset(
                                   imagePath,
                                   fit: BoxFit.contain,
@@ -450,7 +474,7 @@ class _ExerciseFormSheetState extends State<_ExerciseFormSheet> {
                             ),
                             Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.all(4),
+                              padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
                                 color: Colors.grey.shade100,
                                 borderRadius: const BorderRadius.only(
@@ -459,10 +483,10 @@ class _ExerciseFormSheetState extends State<_ExerciseFormSheet> {
                                 ),
                               ),
                               child: Text(
-                                exerciseName.replaceAll('_', ' ').toUpperCase(),
+                                exerciseName,
                                 style: const TextStyle(fontSize: 12),
                                 textAlign: TextAlign.center,
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),

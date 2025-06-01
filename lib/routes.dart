@@ -8,6 +8,7 @@ import 'screens/workout/workout_form_screen.dart';
 import 'screens/workout/workout_details_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/metrics/metrics_screen.dart';
+import 'screens/store/store_screen.dart'; // Importando a nova tela da loja
 
 class AppRoutes {
   static const String login = '/login';
@@ -19,6 +20,7 @@ class AppRoutes {
   static const String workoutDetails = '/workout/details';
   static const String profile = '/profile';
   static const String metrics = '/metrics';
+  static const String store = '/store'; // Nova rota para a loja
 
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     print('\n[Routes] Gerando rota: ${settings.name}');
@@ -75,6 +77,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
       case metrics:
         return MaterialPageRoute(builder: (_) => const MetricsScreen());
+      case store:
+        return MaterialPageRoute(builder: (_) => StoreScreen());
       default:
         print('[Routes] ERRO: Rota não encontrada: ${settings.name}');
         return MaterialPageRoute(
@@ -86,4 +90,4 @@ class AppRoutes {
         );
     }
   }
-} 
+}

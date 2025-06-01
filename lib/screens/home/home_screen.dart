@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../workout/workout_list_screen.dart';
 import '../profile/profile_screen.dart';
 import '../metrics/metrics_screen.dart';
+import '../store/store_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,10 +13,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-
-  final List<Widget> _screens = [
-    const WorkoutListScreen(),
+  final List<Widget> _screens = [    const WorkoutListScreen(),
     const MetricsScreen(),
+    const StoreScreen(),
     const ProfileScreen(),
   ];
 
@@ -31,12 +31,16 @@ class _HomeScreenState extends State<HomeScreen> {
       label: 'Métricas',
     ),
     NavigationDestination(
+      icon: Icon(Icons.store_outlined),
+      selectedIcon: Icon(Icons.store),
+      label: 'Loja',
+    ),
+    NavigationDestination(
       icon: Icon(Icons.person_outline),
       selectedIcon: Icon(Icons.person),
       label: 'Perfil',
     ),
   ];
-
   String get _screenTitle {
     switch (_selectedIndex) {
       case 0:
@@ -44,6 +48,8 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return 'Métricas';
       case 2:
+        return 'Loja';
+      case 3:
         return 'Perfil';
       default:
         return '';
@@ -95,4 +101,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-} 
+}

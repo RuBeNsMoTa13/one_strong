@@ -658,10 +658,22 @@ Por favor, verifique:
     }
   }
 
+  static Future<bool> deleteWorkoutTemplate(mongo.ObjectId templateId) async {
+    try {
+      final result = await _db.collection('workout_templates').deleteOne(
+        mongo.where.id(templateId),
+      );
+      return result.isSuccess;
+    } catch (e) {
+      print('[DatabaseService] Erro ao deletar treino: $e');
+      return false;
+    }
+  }
+
   static Future<void> close() async {
     if (_isInitialized) {
       await _db.close();
       _isInitialized = false;
     }
   }
-} 
+}

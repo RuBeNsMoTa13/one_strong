@@ -146,6 +146,70 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
     }
   }
 
+  Future<void> _deleteWorkoutTemplate(WorkoutTemplate template) async {
+    try {
+      // Mostra um diálogo de confirmação
+      final bool? confirm = await showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Confirmar exclusão'),
+            content: const Text('Tem certeza que deseja excluir este treino?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.red,
+                ),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Excluir'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirm != true) return;
+
+      print('[WorkoutListScreen] Deletando treino: ${template.id}');
+      final success = await DatabaseService.deleteWorkoutTemplate(template.id);
+      
+      if (success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Treino excluído com sucesso'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          await _loadTemplates();
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Erro ao excluir o treino'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('[WorkoutListScreen] Erro ao deletar treino: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erro ao excluir o treino'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -280,8 +344,7 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
                                                         : null,
                                                   ),
                                                   onPressed: () => _toggleFavorite(template),
-                                                ),
-                                                IconButton(
+                                                ),                                                IconButton(
                                                   icon: const Icon(Icons.edit),
                                                   onPressed: () {
                                                     Navigator.pushNamed(
@@ -290,6 +353,11 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
                                                       arguments: template,
                                                     ).then((_) => _loadTemplates());
                                                   },
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.delete_outline),
+                                                  color: Colors.red,
+                                                  onPressed: () => _deleteWorkoutTemplate(template),
                                                 ),
                                               ],
                                             ),
@@ -345,4 +413,4 @@ class _WorkoutListScreenState extends State<WorkoutListScreen> {
       ),
     );
   }
-} 
+}

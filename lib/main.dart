@@ -99,7 +99,7 @@ class MyApp extends StatelessWidget {
             const TextStyle(color: Colors.amber),
           ),
         ),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           color: Colors.grey[850],
           elevation: 2,
           shape: RoundedRectangleBorder(
